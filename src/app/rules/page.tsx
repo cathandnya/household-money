@@ -9,6 +9,8 @@ type Rule = {
   field: string;
   priority: number;
   accountKindFilter: string | null;
+  amountMin: number | null;
+  amountMax: number | null;
   enabled: boolean;
   category: { id: number; name: string };
 };
@@ -21,6 +23,8 @@ export default function RulesPage() {
   const [field, setField] = useState("PAYEE");
   const [isRegex, setIsRegex] = useState(false);
   const [priority, setPriority] = useState(100);
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
   const [reapplying, setReapplying] = useState(false);
   const [reapplyMsg, setReapplyMsg] = useState<string | null>(null);
 
@@ -42,9 +46,19 @@ export default function RulesPage() {
     await fetch("/api/rules", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pattern, categoryId, field, isRegex, priority }),
+      body: JSON.stringify({
+        pattern,
+        categoryId,
+        field,
+        isRegex,
+        priority,
+        amountMin: amountMin === "" ? null : Number(amountMin),
+        amountMax: amountMax === "" ? null : Number(amountMax),
+      }),
     });
     setPattern("");
+    setAmountMin("");
+    setAmountMax("");
     reload();
   };
 
@@ -85,28 +99,40 @@ export default function RulesPage() {
               <th className="text-left p-2">対象</th>
               <th className="text-left p-2">パターン</th>
               <th className="text-left p-2">正規表現</th>
+              <th className="text-left p-2">金額条件</th>
               <th className="text-left p-2">カテゴリ</th>
               <th className="text-left p-2"></th>
             </tr>
           </thead>
           <tbody>
-            {rules.map((r) => (
-              <tr key={r.id} className="border-t">
-                <td className="p-2 text-right">{r.priority}</td>
-                <td className="p-2">{r.field}</td>
-                <td className="p-2 font-mono">{r.pattern}</td>
-                <td className="p-2">{r.isRegex ? "✓" : ""}</td>
-                <td className="p-2">{r.category.name}</td>
-                <td className="p-2">
-                  <button className="text-red-500 text-xs" onClick={() => remove(r.id)}>
-                    削除
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {rules.map((r) => {
+              const amt =
+                r.amountMin == null && r.amountMax == null
+                  ? "-"
+                  : r.amountMin != null && r.amountMax != null
+                    ? `${r.amountMin.toLocaleString()} 〜 ${r.amountMax.toLocaleString()}`
+                    : r.amountMin != null
+                      ? `${r.amountMin.toLocaleString()} 以上`
+                      : `${r.amountMax!.toLocaleString()} 以下`;
+              return (
+                <tr key={r.id} className="border-t">
+                  <td className="p-2 text-right">{r.priority}</td>
+                  <td className="p-2">{r.field}</td>
+                  <td className="p-2 font-mono">{r.pattern}</td>
+                  <td className="p-2">{r.isRegex ? "✓" : ""}</td>
+                  <td className="p-2">{amt}</td>
+                  <td className="p-2">{r.category.name}</td>
+                  <td className="p-2">
+                    <button className="text-red-500 text-xs" onClick={() => remove(r.id)}>
+                      削除
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
             {rules.length === 0 && (
               <tr>
-                <td className="p-4 text-muted-foreground" colSpan={6}>
+                <td className="p-4 text-muted-foreground" colSpan={7}>
                   ルールがありません
                 </td>
               </tr>
@@ -151,6 +177,25 @@ export default function RulesPage() {
             onChange={(e) => setPriority(Number(e.target.value))}
             placeholder="優先度 (小さいほど先)"
           />
+          <div className="col-span-2 flex items-center gap-2 text-xs">
+            <span>金額条件 (絶対値):</span>
+            <input
+              type="number"
+              placeholder="下限"
+              className="border border-border-app p-1 w-24"
+              value={amountMin}
+              onChange={(e) => setAmountMin(e.target.value)}
+            />
+            <span>〜</span>
+            <input
+              type="number"
+              placeholder="上限"
+              className="border border-border-app p-1 w-24"
+              value={amountMax}
+              onChange={(e) => setAmountMax(e.target.value)}
+            />
+            <span className="text-muted-foreground">空欄なら制限なし</span>
+          </div>
           <button className="bg-blue-600 text-white px-4 py-2 col-span-2">追加</button>
         </form>
       </section>

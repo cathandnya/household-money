@@ -25,13 +25,20 @@ export function applyRules(
 export async function recategorizeAll(): Promise<number> {
   const rules = await loadActiveRules();
   const txs = await prisma.transaction.findMany({
-    select: { id: true, payee: true, memo: true, account: { select: { kind: true } } },
+    select: {
+      id: true,
+      payee: true,
+      memo: true,
+      amount: true,
+      account: { select: { kind: true } },
+    },
   });
   let updated = 0;
   for (const t of txs) {
     const cat = applyRules(rules, {
       payee: t.payee,
       memo: t.memo,
+      amount: t.amount,
       accountKind: t.account.kind,
     });
     await prisma.transaction.update({

@@ -16,6 +16,13 @@ export async function GET(req: NextRequest) {
   const isRegex = searchParams.get("isRegex") === "1";
   const field = searchParams.get("field") === "MEMO" ? "MEMO" : "PAYEE";
   const accountKindFilter = searchParams.get("accountKindFilter") || null;
+  const parseIntOrNull = (s: string | null) => {
+    if (s == null || s === "") return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  };
+  const amountMin = parseIntOrNull(searchParams.get("amountMin"));
+  const amountMax = parseIntOrNull(searchParams.get("amountMax"));
 
   if (!pattern) {
     return NextResponse.json(
@@ -45,7 +52,7 @@ export async function GET(req: NextRequest) {
     take: SCAN_LIMIT,
   });
 
-  const ruleLike = { pattern, isRegex, field, accountKindFilter };
+  const ruleLike = { pattern, isRegex, field, accountKindFilter, amountMin, amountMax };
   const sample: Array<{
     id: number;
     occurredAt: string;
@@ -57,7 +64,12 @@ export async function GET(req: NextRequest) {
   let matchCount = 0;
   for (const t of rows) {
     if (
-      matchRule(ruleLike, { payee: t.payee, memo: t.memo, accountKind: t.account.kind })
+      matchRule(ruleLike, {
+        payee: t.payee,
+        memo: t.memo,
+        accountKind: t.account.kind,
+        amount: t.amount,
+      })
     ) {
       matchCount++;
       if (sample.length < SAMPLE_LIMIT) {

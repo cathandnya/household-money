@@ -15,6 +15,8 @@ type ExistingRule = {
   isRegex: boolean;
   field: string;
   accountKindFilter: string | null;
+  amountMin: number | null;
+  amountMax: number | null;
   category: { id: number; name: string };
 };
 
@@ -36,6 +38,8 @@ export type RuleScopeMatcher = (args: {
   isRegex: boolean;
   field: "PAYEE" | "MEMO";
   accountKindFilter: string | null;
+  amountMin: number | null;
+  amountMax: number | null;
 }) => { matchCount: number; sampleMatches: PreviewResp["sampleMatches"] };
 
 export default function RuleCreateDialog({
@@ -61,6 +65,8 @@ export default function RuleCreateDialog({
       isRegex: boolean;
       field: "PAYEE" | "MEMO";
       accountKindFilter: string | null;
+      amountMin: number | null;
+      amountMax: number | null;
       categoryId: number;
     }) => void;
   };
@@ -72,6 +78,17 @@ export default function RuleCreateDialog({
   const [field, setField] = useState<"PAYEE" | "MEMO">("PAYEE");
   const [priority, setPriority] = useState(100);
   const [overwriteExisting, setOverwriteExisting] = useState(false);
+  // 金額条件 (絶対値で比較)。空文字 = 制限なし
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
+  const parseIntOrNull = (s: string): number | null => {
+    const t = s.trim();
+    if (!t) return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  };
+  const amountMinNum = parseIntOrNull(amountMin);
+  const amountMaxNum = parseIntOrNull(amountMax);
 
   const [existingRules, setExistingRules] = useState<ExistingRule[]>([]);
   const [preview, setPreview] = useState<PreviewResp | null>(null);
@@ -90,7 +107,7 @@ export default function RuleCreateDialog({
   const selected = candidates[selectedIdx];
   const accountKindFilter = accountKindOn ? tx.account.kind : null;
 
-  // 同 pattern + field + accountKindFilter の既存ルールを探す
+  // 同 pattern + field + accountKindFilter + 金額条件 の既存ルールを探す
   const conflict = useMemo(() => {
     if (!selected) return null;
     const targetKind = accountKindOn ? tx.account.kind : null;
@@ -100,10 +117,21 @@ export default function RuleCreateDialog({
           r.pattern === selected.pattern &&
           r.field === field &&
           (r.accountKindFilter || null) === targetKind &&
-          r.isRegex === isRegex,
+          r.isRegex === isRegex &&
+          (r.amountMin ?? null) === amountMinNum &&
+          (r.amountMax ?? null) === amountMaxNum,
       ) ?? null
     );
-  }, [existingRules, selected, field, accountKindOn, tx.account.kind, isRegex]);
+  }, [
+    existingRules,
+    selected,
+    field,
+    accountKindOn,
+    tx.account.kind,
+    isRegex,
+    amountMinNum,
+    amountMaxNum,
+  ]);
 
   // プレビュー件数取得。scope が指定されていればクライアント側で同期計算、
   // なければ /api/rules/preview を debounce で叩く。
@@ -114,7 +142,14 @@ export default function RuleCreateDialog({
       return;
     }
     if (scope) {
-      const r = scope.matcher({ pattern: selected.pattern, isRegex, field, accountKindFilter });
+      const r = scope.matcher({
+        pattern: selected.pattern,
+        isRegex,
+        field,
+        accountKindFilter,
+        amountMin: amountMinNum,
+        amountMax: amountMaxNum,
+      });
       setPreview({ matchCount: r.matchCount, sampleMatches: r.sampleMatches, truncated: false });
       return;
     }
@@ -128,6 +163,8 @@ export default function RuleCreateDialog({
           field,
         });
         if (accountKindFilter) params.set("accountKindFilter", accountKindFilter);
+        if (amountMinNum != null) params.set("amountMin", String(amountMinNum));
+        if (amountMaxNum != null) params.set("amountMax", String(amountMaxNum));
         const res = await fetch("/api/rules/preview?" + params.toString());
         const json = (await res.json()) as PreviewResp;
         setPreview(json);
@@ -139,7 +176,7 @@ export default function RuleCreateDialog({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.pattern, isRegex, field, accountKindFilter]);
+  }, [selected?.pattern, isRegex, field, accountKindFilter, amountMinNum, amountMaxNum]);
 
   const createAndMaybeApply = async (alsoApply: boolean) => {
     if (!selected) return;
@@ -164,6 +201,8 @@ export default function RuleCreateDialog({
           field,
           priority,
           accountKindFilter,
+          amountMin: amountMinNum,
+          amountMax: amountMaxNum,
           categoryId: category.id,
           enabled: true,
         }),
@@ -184,6 +223,8 @@ export default function RuleCreateDialog({
             isRegex,
             field,
             accountKindFilter,
+            amountMin: amountMinNum,
+            amountMax: amountMaxNum,
             categoryId: category.id,
           });
           setMessage(
@@ -245,7 +286,9 @@ export default function RuleCreateDialog({
                     r.pattern === c.pattern &&
                     r.field === field &&
                     (r.accountKindFilter || null) === accountKindFilter &&
-                    r.isRegex === isRegex,
+                    r.isRegex === isRegex &&
+                    (r.amountMin ?? null) === amountMinNum &&
+                    (r.amountMax ?? null) === amountMaxNum,
                 );
                 return (
                   <li key={i}>
@@ -312,6 +355,25 @@ export default function RuleCreateDialog({
               onChange={(e) => setPriority(Number(e.target.value) || 100)}
               className="border border-border-app p-1 w-20 text-xs"
             />
+          </label>
+          <label className="flex items-center gap-2 text-xs col-span-2">
+            金額条件 (絶対値):
+            <input
+              type="number"
+              placeholder="下限"
+              value={amountMin}
+              onChange={(e) => setAmountMin(e.target.value)}
+              className="border border-border-app p-1 w-24 text-xs"
+            />
+            <span>〜</span>
+            <input
+              type="number"
+              placeholder="上限"
+              value={amountMax}
+              onChange={(e) => setAmountMax(e.target.value)}
+              className="border border-border-app p-1 w-24 text-xs"
+            />
+            <span className="text-muted-foreground">空欄なら制限なし</span>
           </label>
         </section>
 

@@ -424,9 +424,9 @@ function FileImportRow({
           }}
           scope={{
             label: "プレビュー内の他の行のうち",
-            matcher: ({ pattern, isRegex, field, accountKindFilter }) => {
+            matcher: ({ pattern, isRegex, field, accountKindFilter, amountMin, amountMax }) => {
               if (preview.kind !== "tx" || !account) return { matchCount: 0, sampleMatches: [] };
-              const rule = { pattern, isRegex, field, accountKindFilter };
+              const rule = { pattern, isRegex, field, accountKindFilter, amountMin, amountMax };
               const matched = preview.rows.filter((r) => {
                 if (r.rowHash === ruleDialog.rowHash) return false; // 起点行は除外
                 if (r.duplicate) return false;
@@ -434,6 +434,7 @@ function FileImportRow({
                   payee: r.payee,
                   memo: r.memo ?? null,
                   accountKind: account.kind,
+                  amount: r.amount,
                 });
               });
               return {
@@ -446,9 +447,17 @@ function FileImportRow({
                 })),
               };
             },
-            onApplyToScope: ({ pattern, isRegex, field, accountKindFilter, categoryId }) => {
+            onApplyToScope: ({
+              pattern,
+              isRegex,
+              field,
+              accountKindFilter,
+              amountMin,
+              amountMax,
+              categoryId,
+            }) => {
               if (preview.kind !== "tx" || !account) return;
-              const rule = { pattern, isRegex, field, accountKindFilter };
+              const rule = { pattern, isRegex, field, accountKindFilter, amountMin, amountMax };
               setOverrides((prev) => {
                 const next = { ...prev };
                 for (const r of preview.rows) {
@@ -459,6 +468,7 @@ function FileImportRow({
                       payee: r.payee,
                       memo: r.memo ?? null,
                       accountKind: account.kind,
+                      amount: r.amount,
                     })
                   ) {
                     next[r.rowHash] = categoryId;

@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       id: true,
       payee: true,
       memo: true,
+      amount: true,
       account: { select: { kind: true } },
     },
   });
@@ -36,7 +37,12 @@ export async function POST(req: NextRequest) {
   const ids: number[] = [];
   for (const t of rows) {
     if (
-      matchRule(rule, { payee: t.payee, memo: t.memo, accountKind: t.account.kind })
+      matchRule(rule, {
+        payee: t.payee,
+        memo: t.memo,
+        accountKind: t.account.kind,
+        amount: t.amount,
+      })
     ) {
       ids.push(t.id);
     }

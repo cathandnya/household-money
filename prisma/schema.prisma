@@ -137,6 +137,11 @@ model Rule {
   isRegex           Boolean  @default(false)
   field             String   @default("PAYEE") // PAYEE | MEMO
   accountKindFilter String?
+  // 金額フィルタ (絶対値で比較)。両方 null なら金額条件なし。
+  // 例: 5000 円以上 → amountMin=5000、500 円以下 → amountMax=500、
+  //     1000-5000 範囲 → amountMin=1000, amountMax=5000
+  amountMin         Int?
+  amountMax         Int?
   categoryId        Int
   category          Category @relation(fields: [categoryId], references: [id])
   enabled           Boolean  @default(true)

@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
         payee: r.payee,
         memo: r.memo,
         accountKind: account.kind,
+        amount: r.amount,
       });
       return {
         rowHash,

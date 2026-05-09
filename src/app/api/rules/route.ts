@@ -14,8 +14,23 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { pattern, isRegex, field, priority, accountKindFilter, categoryId, enabled } = body ?? {};
+  const {
+    pattern,
+    isRegex,
+    field,
+    priority,
+    accountKindFilter,
+    amountMin,
+    amountMax,
+    categoryId,
+    enabled,
+  } = body ?? {};
   if (!pattern || !categoryId) return NextResponse.json({ error: "invalid" }, { status: 400 });
+  const toIntOrNull = (v: unknown) => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  };
   const rule = await prisma.rule.create({
     data: {
       pattern: String(pattern),
@@ -23,6 +38,8 @@ export async function POST(req: NextRequest) {
       field: field === "MEMO" ? "MEMO" : "PAYEE",
       priority: Number(priority ?? 100),
       accountKindFilter: accountKindFilter || null,
+      amountMin: toIntOrNull(amountMin),
+      amountMax: toIntOrNull(amountMax),
       categoryId: Number(categoryId),
       enabled: enabled ?? true,
     },
