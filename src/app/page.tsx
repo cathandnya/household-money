@@ -17,7 +17,16 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
+
+const PIE_COLORS = [
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1",
+  "#14b8a6", "#eab308", "#a855f7", "#22c55e", "#0ea5e9",
+];
 
 type AccountSummary = {
   accountId: number;
@@ -66,19 +75,27 @@ export default function Dashboard() {
   const monthIncome = flow?.income ?? 0;
   const monthExpense = flow?.expense ?? 0;
 
-  const months = Array.from({ length: 6 }, (_, i) => shiftMonth(selectedMonth, i - 5));
-  const cats = Array.from(
-    new Set(
-      data.monthly
-        .filter((m) => months.includes(m.month))
-        .map((m) => m.categoryName),
-    ),
+  const monthRows = data.monthly.filter((m) => m.month === selectedMonth);
+  // 表示中の月のみ、収入と支出に分けてカテゴリ集計 (TRANSFER は除外)
+  const aggregate = (predicate: (m: Monthly[number]) => boolean) => {
+    const map = new Map<string, number>();
+    for (const m of monthRows) {
+      if (m.kind === "TRANSFER") continue;
+      if (!predicate(m)) continue;
+      const abs = Math.abs(m.amount);
+      if (abs === 0) continue;
+      map.set(m.categoryName, (map.get(m.categoryName) ?? 0) + abs);
+    }
+    return [...map.entries()]
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  };
+  const incomeCats = aggregate(
+    (m) => m.kind === "INCOME" || (m.kind == null && m.amount > 0),
   );
-  const matrix: Record<string, Record<string, number>> = {};
-  for (const c of cats) matrix[c] = {};
-  for (const m of data.monthly) {
-    if (months.includes(m.month)) matrix[m.categoryName][m.month] = m.amount;
-  }
+  const expenseCats = aggregate(
+    (m) => m.kind === "EXPENSE" || (m.kind == null && m.amount < 0),
+  );
 
   return (
     <div className="space-y-8">
@@ -124,32 +141,9 @@ export default function Dashboard() {
         <Card title={`支出 (${selectedMonth})`} value={monthExpense} />
       </section>
 
-      <section className="bg-surface border border-border-app p-4">
-        <h3 className="font-bold mb-2">月次カテゴリ集計 ({months[0]} 〜 {months[months.length - 1]})</h3>
-        <div className="overflow-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-surface-muted">
-              <tr>
-                <th className="text-left p-1">カテゴリ</th>
-                {months.map((m) => (
-                  <th key={m} className="text-right p-1">{m}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {cats.map((c) => (
-                <tr key={c} className="border-t">
-                  <td className="p-1">{c}</td>
-                  {months.map((m) => (
-                    <td key={m} className="p-1 text-right">
-                      {matrix[c][m]?.toLocaleString() ?? ""}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CategoryBreakdown title={`収入 (${selectedMonth})`} data={incomeCats} />
+        <CategoryBreakdown title={`支出 (${selectedMonth})`} data={expenseCats} />
       </section>
 
       <h2 className="text-lg font-bold border-b border-border-app pb-1 pt-4">資産</h2>
@@ -223,6 +217,83 @@ function Card({ title, value }: { title: string; value: number }) {
     <div className="bg-surface border border-border-app p-4">
       <p className="text-xs text-muted-foreground">{title}</p>
       <p className="text-2xl font-bold mt-1 num">{value.toLocaleString()} 円</p>
+    </div>
+  );
+}
+
+function CategoryBreakdown({
+  title,
+  data,
+}: {
+  title: string;
+  data: Array<{ name: string; value: number }>;
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  return (
+    <div className="bg-surface border border-border-app p-4">
+      <h3 className="font-bold mb-2">{title}</h3>
+      {data.length === 0 ? (
+        <p className="text-sm text-muted-foreground">データなし</p>
+      ) : (
+        <>
+          <div className="h-56">
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie
+                  data={data}
+                  dataKey="value"
+                  nameKey="name"
+                  outerRadius="80%"
+                  stroke="var(--surface)"
+                >
+                  {data.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(v) => Number(v).toLocaleString() + "円"}
+                  contentStyle={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <table className="w-full text-xs mt-2">
+            <thead className="bg-surface-muted">
+              <tr>
+                <th className="text-left p-1">カテゴリ</th>
+                <th className="text-right p-1">金額</th>
+                <th className="text-right p-1">構成比</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((d, i) => (
+                <tr key={d.name} className="border-t">
+                  <td className="p-1">
+                    <span
+                      className="inline-block w-2 h-2 mr-1 align-middle"
+                      style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+                    />
+                    {d.name}
+                  </td>
+                  <td className="p-1 text-right">{d.value.toLocaleString()}</td>
+                  <td className="p-1 text-right">
+                    {total > 0 ? ((d.value / total) * 100).toFixed(1) : "0.0"}%
+                  </td>
+                </tr>
+              ))}
+              <tr className="border-t font-bold">
+                <td className="p-1">合計</td>
+                <td className="p-1 text-right">{total.toLocaleString()}</td>
+                <td className="p-1 text-right">100.0%</td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
     </div>
   );
 }
