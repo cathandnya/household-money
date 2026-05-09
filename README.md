@@ -46,10 +46,10 @@ npm run dev              # http://localhost:3001
 
 ### LAN 上の別ホスト名でアクセスする場合
 
-`localhost` 以外のホスト名 (例: `pino.local`) で開くと Next.js のクロスオリジン保護で HMR がブロックされ、ハイドレーションが進まない。許可ホストを `.env.local` で設定する:
+`localhost` 以外のホスト名 (例: `myhost.local`) で開くと Next.js のクロスオリジン保護で HMR がブロックされ、ハイドレーションが進まない。許可ホストを `.env.local` で設定する:
 
 ```
-ALLOWED_DEV_ORIGINS=pino.local,othermachine.local
+ALLOWED_DEV_ORIGINS=myhost.local,othermachine.local
 ```
 
 [next.config.ts](next.config.ts) がこの環境変数を読んで `allowedDevOrigins` に渡す。`.env.local` は gitignore 対象なのでホストごとに各自で用意する。
