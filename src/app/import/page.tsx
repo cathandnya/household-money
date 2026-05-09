@@ -72,6 +72,7 @@ type Preview =
 type AdapterOption = { code: string; label: string; resultKind: string };
 type Inst = { id: number; code: string; name: string; kind: string; adapters: AdapterOption[] };
 type Account = { id: number; name: string; kind: string; institution: { id: number; code: string; name: string } };
+type Category = { id: number; name: string; kind: string };
 
 export default function ImportPage() {
   // 1 ファイルずつプレビュー → 取込/閉じるで次のファイルへ。
@@ -79,10 +80,12 @@ export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [allInsts, setAllInsts] = useState<Inst[]>([]);
   const [allAccounts, setAllAccounts] = useState<Account[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     fetch("/api/institutions").then((r) => r.json()).then(setAllInsts);
     fetch("/api/accounts").then((r) => r.json()).then(setAllAccounts);
+    fetch("/api/categories").then((r) => r.json()).then(setAllCategories);
   }, []);
 
   return (
@@ -103,6 +106,7 @@ export default function ImportPage() {
           file={file}
           allInsts={allInsts}
           allAccounts={allAccounts}
+          allCategories={allCategories}
           onRemove={() => setFile(null)}
         />
       )}
@@ -158,11 +162,13 @@ function FileImportRow({
   file,
   allInsts,
   allAccounts,
+  allCategories,
   onRemove,
 }: {
   file: File;
   allInsts: Inst[];
   allAccounts: Account[];
+  allCategories: Category[];
   onRemove: () => void;
 }) {
   const [detect, setDetect] = useState<DetectResult | null>(null);
@@ -172,6 +178,9 @@ function FileImportRow({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [committed, setCommitted] = useState(false);
+  // tx プレビューで rowHash → 選択 categoryId (null は明示的にカテゴリなし)
+  // preview を再取得するたびにリセットされる。
+  const [overrides, setOverrides] = useState<Record<string, number | null>>({});
 
   // 初回マウントで判定
   useEffect(() => {
@@ -199,6 +208,7 @@ function FileImportRow({
     setBusy(true);
     setMessage(null);
     setPreview(null);
+    setOverrides({}); // 再プレビューでクリア
     const fd = new FormData();
     fd.append("file", file);
     fd.append("adapterCode", adapter);
@@ -221,6 +231,9 @@ function FileImportRow({
     fd.append("file", file);
     fd.append("adapterCode", adapterCode);
     fd.append("accountId", String(accountId));
+    if (Object.keys(overrides).length > 0) {
+      fd.append("categoryOverrides", JSON.stringify(overrides));
+    }
     const res = await fetch("/api/import/commit", { method: "POST", body: fd });
     const json = await res.json();
     setBusy(false);
@@ -351,12 +364,35 @@ function FileImportRow({
       )}
 
       {message && <p className="text-sm">{message}</p>}
-      {preview && <PreviewBlock preview={preview} />}
+      {preview && (
+        <PreviewBlock
+          preview={preview}
+          allCategories={allCategories}
+          overrides={overrides}
+          onChangeCategory={(rowHash, catId) =>
+            setOverrides((prev) => ({ ...prev, [rowHash]: catId }))
+          }
+        />
+      )}
     </section>
   );
 }
 
-function PreviewBlock({ preview }: { preview: Preview }) {
+function PreviewBlock({
+  preview,
+  allCategories,
+  overrides,
+  onChangeCategory,
+}: {
+  preview: Preview;
+  allCategories: Category[];
+  overrides: Record<string, number | null>;
+  onChangeCategory: (rowHash: string, categoryId: number | null) => void;
+}) {
+  // tx 行で実際に保存される categoryId (override > suggestedCategoryId)
+  const effectiveCategoryId = (rowHash: string, suggested: number | null) =>
+    Object.prototype.hasOwnProperty.call(overrides, rowHash) ? overrides[rowHash] : suggested;
+
   return (
     <div className="text-sm space-y-2">
       {preview.warnings.length > 0 && (
@@ -374,7 +410,7 @@ function PreviewBlock({ preview }: { preview: Preview }) {
           <p>
             合計 {preview.total} 行 / 重複 {preview.duplicateRows} 行
           </p>
-          <div className="max-h-72 overflow-auto">
+          <div className="max-h-96 overflow-auto">
             <table className="w-full text-xs">
               <thead className="bg-surface-muted sticky top-0">
                 <tr>
@@ -382,19 +418,43 @@ function PreviewBlock({ preview }: { preview: Preview }) {
                   <th className="text-right p-1">金額</th>
                   <th className="text-right p-1">残高</th>
                   <th className="text-left p-1">摘要</th>
+                  <th className="text-left p-1">カテゴリ</th>
                   <th className="text-left p-1">重複</th>
                 </tr>
               </thead>
               <tbody>
-                {preview.rows.slice(0, 200).map((r) => (
-                  <tr key={r.rowHash} className={r.duplicate ? "text-muted-foreground" : ""}>
-                    <td className="p-1">{r.occurredAt.slice(0, 10)}</td>
-                    <td className="p-1 text-right">{r.amount.toLocaleString()}</td>
-                    <td className="p-1 text-right">{r.balance?.toLocaleString() ?? ""}</td>
-                    <td className="p-1">{r.payee}</td>
-                    <td className="p-1">{r.duplicate ? "✓" : ""}</td>
-                  </tr>
-                ))}
+                {preview.rows.slice(0, 200).map((r) => {
+                  const cat = effectiveCategoryId(r.rowHash, r.suggestedCategoryId);
+                  return (
+                    <tr key={r.rowHash} className={r.duplicate ? "text-muted-foreground" : ""}>
+                      <td className="p-1">{r.occurredAt.slice(0, 10)}</td>
+                      <td className="p-1 text-right">{r.amount.toLocaleString()}</td>
+                      <td className="p-1 text-right">{r.balance?.toLocaleString() ?? ""}</td>
+                      <td className="p-1">{r.payee}</td>
+                      <td className="p-1">
+                        <select
+                          className="border border-border-app text-xs"
+                          value={cat ?? ""}
+                          onChange={(e) =>
+                            onChangeCategory(
+                              r.rowHash,
+                              e.target.value ? Number(e.target.value) : null,
+                            )
+                          }
+                          disabled={r.duplicate}
+                        >
+                          <option value="">-</option>
+                          {allCategories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-1">{r.duplicate ? "✓" : ""}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             {preview.rows.length > 200 && (

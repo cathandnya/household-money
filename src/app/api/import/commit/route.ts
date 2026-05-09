@@ -22,6 +22,22 @@ export async function POST(req: NextRequest) {
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   if (!account) return NextResponse.json({ error: "account not found" }, { status: 404 });
 
+  // クライアント (プレビュー画面) で手動編集されたカテゴリのオーバーライド。
+  // 形式: { "<rowHash>": <categoryId|null>, ... }
+  // null は「カテゴリなしに上書き」、未指定の rowHash は applyRules の結果を採用。
+  const overridesRaw = form.get("categoryOverrides");
+  let categoryOverrides: Record<string, number | null> = {};
+  if (typeof overridesRaw === "string" && overridesRaw.trim()) {
+    try {
+      const parsed = JSON.parse(overridesRaw);
+      if (parsed && typeof parsed === "object") {
+        categoryOverrides = parsed as Record<string, number | null>;
+      }
+    } catch {
+      // 不正な JSON は無視
+    }
+  }
+
   const buf = Buffer.from(await file.arrayBuffer());
   const fileHash = sha256(buf);
   const existing = await prisma.import.findUnique({ where: { fileHash } });
@@ -59,11 +75,14 @@ export async function POST(req: NextRequest) {
         balance: r.balance ?? null,
         seq,
       });
-      const categoryId = applyRules(rules, {
-        payee: r.payee,
-        memo: r.memo,
-        accountKind: account.kind,
-      });
+      // override が来ていればそれを優先、無ければ applyRules
+      const categoryId = Object.prototype.hasOwnProperty.call(categoryOverrides, rowHash)
+        ? categoryOverrides[rowHash]
+        : applyRules(rules, {
+            payee: r.payee,
+            memo: r.memo,
+            accountKind: account.kind,
+          });
       try {
         await prisma.transaction.create({
           data: {
