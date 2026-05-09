@@ -9,6 +9,19 @@ const accountKindLabels: Record<string, string> = {
   DC: "確定拠出年金",
   MANUAL: "手動入力",
 };
+
+const institutionUrls: Record<string, string> = {
+  shinsei: "https://www.sbishinseibank.co.jp/",
+  rakuten_bank: "https://www.rakuten-bank.co.jp/",
+  smtb: "https://direct.smtb.jp/ib1/contents/kk/login",
+  yucho: "https://direct.jp-bank.japanpost.jp/",
+  smcc: "https://www.smbc-card.com/mem/",
+  rakuten_card: "https://www.rakuten-card.co.jp/e-navi/",
+  rakuten_sec: "https://www.rakuten-sec.co.jp/",
+  rakuten_sec_jnisa: "https://www.rakuten-sec.co.jp/",
+  sbi_benefit: "https://www.benefit401k.com/customer/",
+  resona: "https://ib.resonabank.co.jp/web/",
+};
 import {
   LineChart,
   Line,
@@ -32,6 +45,7 @@ type AccountSummary = {
   accountId: number;
   accountName: string;
   institutionName: string;
+  institutionCode: string;
   kind: string;
   balance: number;
   asOf: string | null;
@@ -193,7 +207,20 @@ export default function Dashboard() {
           <tbody>
             {data.accounts.map((a) => (
               <tr key={a.accountId} className="border-t">
-                <td className="p-2">{a.institutionName}</td>
+                <td className="p-2">
+                  {institutionUrls[a.institutionCode] ? (
+                    <a
+                      href={institutionUrls[a.institutionCode]}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-blue-500 underline"
+                    >
+                      {a.institutionName}
+                    </a>
+                  ) : (
+                    a.institutionName
+                  )}
+                </td>
                 <td className="p-2">{a.accountName}</td>
                 <td className="p-2">{accountKindLabels[a.kind] ?? a.kind}</td>
                 <td className="p-2 text-right">{a.balance.toLocaleString()}</td>

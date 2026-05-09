@@ -4,6 +4,7 @@ export type AccountSummary = {
   accountId: number;
   accountName: string;
   institutionName: string;
+  institutionCode: string;
   kind: string;
   balance: number; // 現金口座は最新の Transaction.balance、証券/DC は最新 snapshot 評価額
   asOf: string | null;
@@ -31,6 +32,7 @@ export async function getAccountSummaries(): Promise<AccountSummary[]> {
         accountId: acc.id,
         accountName: acc.name,
         institutionName: acc.institution.name,
+        institutionCode: acc.institution.code,
         kind: acc.kind,
         balance: total,
         asOf,
@@ -44,6 +46,7 @@ export async function getAccountSummaries(): Promise<AccountSummary[]> {
         accountId: acc.id,
         accountName: acc.name,
         institutionName: acc.institution.name,
+        institutionCode: acc.institution.code,
         kind: acc.kind,
         balance: last?.balance ?? 0,
         asOf,
