@@ -36,17 +36,31 @@
 ## セットアップ
 
 ```bash
+cp .env.example .env    # 必要なら値を編集 (PORT・HOSTNAME・DATABASE_URL 等)
 npm run setup
 ```
 
-依存インストール → `data/money.db` 作成 (既存マイグレーション適用) → 機関マスタと初期カテゴリ投入をまとめて実行する。`.env` は同梱の値 (`DATABASE_URL=file:../data/money.db`) で動く。
+`npm run setup` は依存インストール → `data/money.db` 作成 (既存マイグレーション適用) → 機関マスタと初期カテゴリ投入をまとめて実行する。
+
+## 設定
+
+すべての設定は [.env](.env) (gitignore 済) に集約されている。サンプルは [.env.example](.env.example) を参照。
+
+| 変数 | デフォルト | 用途 |
+|---|---|---|
+| `DATABASE_URL` | `file:../data/money.db` | SQLite ファイルのパス (`file:` 必須、prisma 配下からの相対) |
+| `PORT` | `3001` | Next.js が listen するポート |
+| `HOSTNAME` | `0.0.0.0` | listen するインターフェース。`127.0.0.1` でローカルのみに限定 |
+| `ALLOWED_DEV_ORIGINS` | (未設定) | LAN 上の別ホスト名でアクセスするとき (カンマ区切り) |
 
 ## 起動方法
+
+listen ポートとホスト名は `.env` の `PORT` / `HOSTNAME` で制御する (デフォルト `0.0.0.0:3001`)。
 
 ### 開発モード (Turbopack + HMR)
 
 ```bash
-npm run dev    # http://localhost:3001
+npm run dev
 ```
 
 ファイル編集を即反映、エラーは画面と `console` に詳細表示。アダプタや UI を弄るときに使う。
@@ -55,20 +69,14 @@ npm run dev    # http://localhost:3001
 
 ```bash
 npm run build  # ビルド (一度だけ)
-npm run start  # http://localhost:3001
+npm run start
 ```
 
 実運用は本番モードを推奨。HMR や型チェックのオーバーヘッドがなく、メモリも軽い。
 
 ### LAN 上の別ホスト名でアクセスする場合
 
-`localhost` 以外のホスト名 (例: `myhost.local`) で開くと Next.js のクロスオリジン保護で HMR がブロックされ、ハイドレーションが進まない。許可ホストを `.env.local` で設定する:
-
-```
-ALLOWED_DEV_ORIGINS=myhost.local,othermachine.local
-```
-
-[next.config.ts](next.config.ts) がこの環境変数を読んで `allowedDevOrigins` に渡す。`.env.local` は gitignore 対象なのでホストごとに各自で用意する。
+`localhost` 以外のホスト名 (例: `myhost.local`) で開くと Next.js のクロスオリジン保護で HMR がブロックされる。`.env` の `ALLOWED_DEV_ORIGINS` にホスト名をカンマ区切りで追加すれば許可される ([next.config.ts](next.config.ts) で `allowedDevOrigins` に渡している)。
 
 ## 常駐させる (オプション)
 
