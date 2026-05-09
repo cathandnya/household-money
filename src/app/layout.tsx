@@ -7,7 +7,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "money - 個人資産管理",
+  title: "household-money - 個人資産管理",
   description: "銀行・カード・証券のCSVを取り込んで一元管理",
 };
 
@@ -27,7 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <header className="bg-surface border-b border-border-app">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-6">
-            <Link href="/" className="font-bold text-lg">money</Link>
+            <Link href="/" className="font-bold text-lg">household-money</Link>
             <nav className="flex gap-4 text-sm">
               {nav.map((n) => (
                 <Link key={n.href} href={n.href} className="hover:text-blue-500">

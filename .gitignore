@@ -46,3 +46,6 @@ next-env.d.ts
 /data/
 *.db
 *.db-journal
+
+# 実 CSV (個人情報を含む) はコミットしない
+/sample/
