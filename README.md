@@ -36,13 +36,29 @@
 ## セットアップ
 
 ```bash
-npm install
-npx prisma migrate dev   # data/money.db を作成しマイグレーションを適用
-npx tsx prisma/seed.ts   # 機関マスタ・初期カテゴリ投入
-npm run dev              # http://localhost:3001
+npm run setup
 ```
 
-`.env` の `DATABASE_URL` は `file:../data/money.db` を指す。
+依存インストール → `data/money.db` 作成 (既存マイグレーション適用) → 機関マスタと初期カテゴリ投入をまとめて実行する。`.env` は同梱の値 (`DATABASE_URL=file:../data/money.db`) で動く。
+
+## 起動方法
+
+### 開発モード (Turbopack + HMR)
+
+```bash
+npm run dev    # http://localhost:3001
+```
+
+ファイル編集を即反映、エラーは画面と `console` に詳細表示。アダプタや UI を弄るときに使う。
+
+### 本番モード (常用向け、軽量・高速)
+
+```bash
+npm run build  # ビルド (一度だけ)
+npm run start  # http://localhost:3001
+```
+
+実運用は本番モードを推奨。HMR や型チェックのオーバーヘッドがなく、メモリも軽い。
 
 ### LAN 上の別ホスト名でアクセスする場合
 
@@ -53,6 +69,81 @@ ALLOWED_DEV_ORIGINS=myhost.local,othermachine.local
 ```
 
 [next.config.ts](next.config.ts) がこの環境変数を読んで `allowedDevOrigins` に渡す。`.env.local` は gitignore 対象なのでホストごとに各自で用意する。
+
+## 常駐させる (オプション)
+
+ターミナルを閉じても起動し続けるよう、OS のサービスマネージャに登録する。
+
+### macOS (launchd)
+
+`~/Library/LaunchAgents/local.household-money.plist` を作成:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.household-money</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/npm</string>
+    <string>run</string>
+    <string>start</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/yourname/path/to/household-money</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/household-money.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/household-money.err</string>
+</dict>
+</plist>
+```
+
+`npm` のパスは `which npm` で確認 (Homebrew なら `/opt/homebrew/bin/npm` のことが多い)。読み込み:
+
+```bash
+launchctl load ~/Library/LaunchAgents/local.household-money.plist     # 起動
+launchctl unload ~/Library/LaunchAgents/local.household-money.plist   # 停止
+```
+
+事前に `npm run build` を済ませておくこと。
+
+### Linux (systemd, ユーザーサービス)
+
+`~/.config/systemd/user/household-money.service` を作成:
+
+```ini
+[Unit]
+Description=household-money
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/path/to/household-money
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+`npm` のパスは `which npm` で確認。有効化:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now household-money    # 起動 + 自動起動
+systemctl --user status household-money          # 状態確認
+journalctl --user -u household-money -f          # ログ追跡
+systemctl --user disable --now household-money   # 停止 + 自動起動解除
+```
+
+OS 起動時に開始したい場合は `loginctl enable-linger $USER` も実行する。事前に `npm run build` を済ませておくこと。
 
 ## 使い方
 
