@@ -7,7 +7,9 @@
     "build": "node scripts/with-env.mjs next build",
     "start": "node scripts/with-env.mjs next start",
     "lint": "eslint",
-    "setup": "npm install && npx prisma migrate deploy && npx tsx prisma/seed.ts"
+    "setup": "npm install && npx prisma migrate deploy && npx tsx prisma/seed.ts",
+    "demo:reset": "node scripts/with-env.mjs tsx scripts/demo/reset.ts",
+    "demo:seed-accounts": "node scripts/with-env.mjs tsx scripts/demo/seed-accounts.ts"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.8.0",
