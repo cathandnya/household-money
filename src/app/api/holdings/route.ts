@@ -19,6 +19,7 @@ export async function GET() {
       name: string;
       qty: number;
       avgCost: number | null;
+      cost: number | null;
       marketValue: number;
       currency: string;
     }>;
@@ -40,6 +41,7 @@ export async function GET() {
             name: h.name,
             qty: h.qty,
             avgCost: h.avgCost,
+            cost: h.cost,
             marketValue: h.marketValue,
             currency: h.currency,
           }))

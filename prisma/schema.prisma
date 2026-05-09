@@ -112,7 +112,8 @@ model Holding {
   ticker       String?
   name         String
   qty          Float
-  avgCost      Float?
+  avgCost      Float?          // 1株/口あたりの平均取得価額。投信は表示用 (口あたり) で総額計算には使わない
+  cost         Int?            // 円換算の取得総額。CSV 由来 (例: 楽天 投信「取得総額」) があれば優先
   marketValue  Int             // 円換算時価評価額
   currency     String          @default("JPY")
 }

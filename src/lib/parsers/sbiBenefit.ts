@@ -68,14 +68,18 @@ export const sbiBenefitAdapter: TextParserAdapter = {
       // td2 の「時価単価 (1万口当り)」を平均取得単価相当として保持。
       // SBI ベネフィットの DC では「1 口当たりの取得単価」は表示されないため、
       // 1万口当たりの時価単価を流用する (Money Forward の挙動と同様)。
+      // qty (口) と price (1万口当り円) なので qty*price は実額の1万倍になる。
+      // 取得総額は td5 の「購入金額」を直接使う。
       const price = parseFloatJp(tds[2].text);
       const qty = parseFloatJp(tds[3].text) ?? 0;
       const value = parseAmount(tds[4].text);
+      const cost = parseAmount(tds[5].text);
 
       holdings.push({
         name,
         qty,
         avgCost: price,
+        cost,
         marketValue: value,
       });
     }

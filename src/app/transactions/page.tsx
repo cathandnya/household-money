@@ -18,7 +18,7 @@ type Tx = {
   category: { id: number; name: string } | null;
 };
 type Account = { id: number; name: string; institution: { name: string } };
-type Category = { id: number; name: string };
+type Category = { id: number; name: string; kind: string };
 
 export default function TransactionsPage() {
   const [txs, setTxs] = useState<Tx[]>([]);
@@ -44,7 +44,16 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetch("/api/accounts").then((r) => r.json()).then(setAccounts);
-    fetch("/api/categories").then((r) => r.json()).then(setCategories);
+    fetch("/api/categories")
+      .then((r) => r.json())
+      .then((cs: Category[]) =>
+        setCategories(
+          [...cs].sort((a, b) => {
+            const order = (k: string) => (k === "TRANSFER" ? 1 : 0);
+            return order(a.kind) - order(b.kind);
+          }),
+        ),
+      );
   }, []);
 
   // フィルタが変わったら自動で再読み込み (テキスト検索は 250ms デバウンス)
@@ -170,11 +179,19 @@ export default function TransactionsPage() {
                     onChange={(e) => updateCategory(t, e.target.value)}
                   >
                     <option value="">-</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
+                    {categories
+                      .filter((c) =>
+                        t.amount > 0
+                          ? c.kind === "INCOME" || c.kind === "TRANSFER"
+                          : t.amount < 0
+                          ? c.kind === "EXPENSE" || c.kind === "TRANSFER"
+                          : true,
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
                   </select>
                 </td>
               </tr>

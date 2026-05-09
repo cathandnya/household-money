@@ -24,6 +24,7 @@ export type ParsedHoldingRow = {
   name: string;
   qty: number;
   avgCost?: number;
+  cost?: number; // 取得総額 (円)。CSV から直接取れる場合はこちらを使う (投信の口あたり計算回避)
   marketValue: number;
   currency?: string;
 };

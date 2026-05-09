@@ -143,26 +143,31 @@ export async function POST(req: NextRequest) {
       { status: 409 },
     );
   }
-  const importRec = await prisma.import.create({
-    data: { accountId, fileName: file.name, fileHash, rowCount: snap.holdings.length },
-  });
-  const snapshot = await prisma.holdingSnapshot.create({
-    data: {
-      accountId,
-      importId: importRec.id,
-      snapshotDate: snap.snapshotDate,
-      sourceFile: file.name,
-      holdings: {
-        create: snap.holdings.map((h) => ({
-          ticker: h.ticker ?? null,
-          name: h.name,
-          qty: h.qty,
-          avgCost: h.avgCost ?? null,
-          marketValue: h.marketValue,
-          currency: h.currency ?? "JPY",
-        })),
+  // Import と HoldingSnapshot をアトミックに作成 (途中失敗で孤児 Import が残らないように)
+  const [importRec, snapshot] = await prisma.$transaction(async (tx) => {
+    const ir = await tx.import.create({
+      data: { accountId, fileName: file.name, fileHash, rowCount: snap.holdings.length },
+    });
+    const sn = await tx.holdingSnapshot.create({
+      data: {
+        accountId,
+        importId: ir.id,
+        snapshotDate: snap.snapshotDate,
+        sourceFile: file.name,
+        holdings: {
+          create: snap.holdings.map((h) => ({
+            ticker: h.ticker ?? null,
+            name: h.name,
+            qty: h.qty,
+            avgCost: h.avgCost ?? null,
+            cost: h.cost != null ? Math.round(h.cost) : null,
+            marketValue: h.marketValue,
+            currency: h.currency ?? "JPY",
+          })),
+        },
       },
-    },
+    });
+    return [ir, sn];
   });
   return NextResponse.json({
     importId: importRec.id,

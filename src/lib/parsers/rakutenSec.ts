@@ -154,6 +154,8 @@ export const rakutenSecHoldingAdapter: TextParserAdapter = {
     const iQty = idx(/保有数量|数量|株数|口数/);
     const iAvg = idx(/平均取得|取得単価/);
     const iValueJpy = header.findIndex((h) => /時価評価額\[円\]/.test(h));
+    // 取得総額は無いので「評価損益[円]」から逆算: cost = 時価評価額 - 評価損益
+    const iPnLJpy = header.findIndex((h) => /評価損益\[円\]/.test(h));
 
     const holdings: ParsedHoldingRow[] = [];
     for (let i = absHeaderIdx + 1; i < rows.length; i++) {
@@ -163,12 +165,16 @@ export const rakutenSecHoldingAdapter: TextParserAdapter = {
       const name = iName >= 0 ? (r[iName] ?? "").trim() : "";
       if (!name) continue;
       const acc = iAccount >= 0 ? (r[iAccount] ?? "").trim() : "";
+      const marketValue = iValueJpy >= 0 ? parseAmount(r[iValueJpy]) : 0;
+      const pnlRaw = iPnLJpy >= 0 ? r[iPnLJpy]?.trim() : "";
+      const cost = pnlRaw ? marketValue - parseAmount(pnlRaw) : undefined;
       holdings.push({
         ticker: iCode >= 0 ? r[iCode]?.trim() || undefined : undefined,
         name: acc ? `${name} (${acc})` : name,
         qty: iQty >= 0 ? parseFloatJp(r[iQty]) ?? 0 : 0,
         avgCost: iAvg >= 0 ? parseFloatJp(r[iAvg]) : undefined,
-        marketValue: iValueJpy >= 0 ? parseAmount(r[iValueJpy]) : 0,
+        cost,
+        marketValue,
       });
     }
     return { kind: "snapshot", snapshot: { snapshotDate, holdings }, warnings };
@@ -237,6 +243,7 @@ export const rakutenSecJnisaAdapter: TextParserAdapter = {
     const iAccount = idx(/口座区分/);
     const iQty = idx(/^保有数量/);
     const iAvg = idx(/平均取得価額/);
+    const iCost = idx(/取得総額/);
     const iValueJpy = idx(/時価評価額\[円\]/);
 
     if (iName < 0 || iValueJpy < 0) {
@@ -259,6 +266,7 @@ export const rakutenSecJnisaAdapter: TextParserAdapter = {
         name: acc ? `${name} (${acc})` : name,
         qty: iQty >= 0 ? parseFloatJp(r[iQty]) ?? 0 : 0,
         avgCost: iAvg >= 0 ? parseFloatJp(r[iAvg]) : undefined,
+        cost: iCost >= 0 ? parseAmount(r[iCost]) : undefined,
         marketValue: parseAmount(r[iValueJpy]),
       });
     }
