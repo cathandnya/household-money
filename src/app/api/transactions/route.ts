@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
     where.OR = [{ payee: { contains: q } }, { memo: { contains: q } }];
   }
   if (accountId) where.accountId = Number(accountId);
-  if (categoryId) where.categoryId = Number(categoryId);
+  if (categoryId === "null") where.categoryId = null;
+  else if (categoryId) where.categoryId = Number(categoryId);
   if (from || to) {
     const range: { gte?: Date; lte?: Date } = {};
     if (from) range.gte = new Date(from);

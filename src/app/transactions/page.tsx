@@ -45,9 +45,14 @@ export default function TransactionsPage() {
   useEffect(() => {
     fetch("/api/accounts").then((r) => r.json()).then(setAccounts);
     fetch("/api/categories").then((r) => r.json()).then(setCategories);
-    reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // フィルタが変わったら自動で再読み込み (テキスト検索は 250ms デバウンス)
+  useEffect(() => {
+    const handle = setTimeout(reload, q ? 250 : 0);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, accountId, categoryId, from, to]);
 
   const totals = useMemo(() => {
     const inc = txs.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
@@ -84,7 +89,7 @@ export default function TransactionsPage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">取引明細</h1>
 
-      <div className="bg-surface border border-border-app p-3 grid grid-cols-2 md:grid-cols-6 gap-2 text-sm">
+      <div className="bg-surface border border-border-app p-3 grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
         <input
           className="border border-border-app p-1"
           placeholder="検索 (摘要/メモ)"
@@ -99,8 +104,13 @@ export default function TransactionsPage() {
             </option>
           ))}
         </select>
-        <select className="border border-border-app p-1" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+        <select
+          className="border border-border-app p-1"
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+        >
           <option value="">全カテゴリ</option>
+          <option value="null">未分類のみ</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -109,9 +119,6 @@ export default function TransactionsPage() {
         </select>
         <input type="date" className="border border-border-app p-1" value={from} onChange={(e) => setFrom(e.target.value)} />
         <input type="date" className="border border-border-app p-1" value={to} onChange={(e) => setTo(e.target.value)} />
-        <button className="bg-neutral-700 text-white px-2 py-1" onClick={reload}>
-          検索
-        </button>
       </div>
 
       <p className="text-sm text-muted-foreground">
