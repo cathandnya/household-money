@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 type Inst = { id: number; code: string; name: string; kind: string };
 type Account = {
@@ -16,6 +17,7 @@ const accountKindLabels: Record<string, string> = {
   CREDIT_CARD: "クレジットカード",
   BROKERAGE: "証券総合口座",
   DC: "確定拠出年金",
+  MANUAL: "手動入力",
 };
 
 const institutionKindLabels: Record<string, string> = {
@@ -23,6 +25,7 @@ const institutionKindLabels: Record<string, string> = {
   CARD: "カード",
   SECURITIES: "証券",
   DC: "確定拠出年金",
+  MANUAL: "手動入力",
 };
 
 const accountKinds: Record<string, string[]> = {
@@ -30,6 +33,7 @@ const accountKinds: Record<string, string[]> = {
   CARD: ["CREDIT_CARD"],
   SECURITIES: ["BROKERAGE"],
   DC: ["DC"],
+  MANUAL: ["MANUAL"],
 };
 
 type EditState = { name: string; kind: string; currency: string };
@@ -122,7 +126,7 @@ export default function AccountsPage() {
               <th className="text-left p-2">口座名</th>
               <th className="text-left p-2">種別</th>
               <th className="text-left p-2">通貨</th>
-              <th className="text-left p-2 w-32">操作</th>
+              <th className="text-left p-2">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -190,13 +194,23 @@ export default function AccountsPage() {
                         </button>
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => startEdit(a)}
-                        className="border border-border-app px-2 py-1 text-xs"
-                      >
-                        編集
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(a)}
+                          className="border border-border-app px-2 py-1 text-xs"
+                        >
+                          編集
+                        </button>
+                        {a.kind === "MANUAL" && (
+                          <Link
+                            href={`/accounts/${a.id}/balance`}
+                            className="border border-border-app px-2 py-1 text-xs hover:text-blue-500"
+                          >
+                            残高記録
+                          </Link>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>

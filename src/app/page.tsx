@@ -1,5 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
+
+const accountKindLabels: Record<string, string> = {
+  CHECKING: "普通預金",
+  SAVINGS: "貯蓄預金",
+  CREDIT_CARD: "クレジットカード",
+  BROKERAGE: "証券総合口座",
+  DC: "確定拠出年金",
+  MANUAL: "手動入力",
+};
 import {
   LineChart,
   Line,
@@ -184,7 +193,7 @@ export default function Dashboard() {
               <th className="text-left p-2">口座</th>
               <th className="text-left p-2">種別</th>
               <th className="text-right p-2">残高</th>
-              <th className="text-left p-2">As of</th>
+              <th className="text-left p-2">最終取込日</th>
             </tr>
           </thead>
           <tbody>
@@ -192,9 +201,11 @@ export default function Dashboard() {
               <tr key={a.accountId} className="border-t">
                 <td className="p-2">{a.institutionName}</td>
                 <td className="p-2">{a.accountName}</td>
-                <td className="p-2">{a.kind}</td>
+                <td className="p-2">{accountKindLabels[a.kind] ?? a.kind}</td>
                 <td className="p-2 text-right">{a.balance.toLocaleString()}</td>
-                <td className="p-2">{a.asOf?.slice(0, 10) ?? "-"}</td>
+                <td className={`p-2 ${!a.asOf || Date.now() - new Date(a.asOf).getTime() > 31 * 24 * 60 * 60 * 1000 ? "text-red-500" : ""}`}>
+                  {a.asOf ? a.asOf.slice(0, 10) : "未取込"}
+                </td>
               </tr>
             ))}
             {data.accounts.length === 0 && (
@@ -211,7 +222,7 @@ function Card({ title, value }: { title: string; value: number }) {
   return (
     <div className="bg-surface border border-border-app p-4">
       <p className="text-xs text-muted-foreground">{title}</p>
-      <p className="text-2xl font-bold mt-1">{value.toLocaleString()} 円</p>
+      <p className="text-2xl font-bold mt-1 num">{value.toLocaleString()} 円</p>
     </div>
   );
 }

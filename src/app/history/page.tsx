@@ -13,11 +13,12 @@ type ImportRow = {
   counts: { tx: number; secTx: number; snapshot: number };
 };
 
-const kindLabel = (counts: ImportRow["counts"]) => {
+const kindLabel = (row: ImportRow) => {
+  if (row.source === "MANUAL") return "残高記録";
   const labels: string[] = [];
-  if (counts.tx > 0) labels.push("入出金");
-  if (counts.secTx > 0) labels.push("証券取引");
-  if (counts.snapshot > 0) labels.push("資産スナップショット");
+  if (row.counts.tx > 0) labels.push("入出金");
+  if (row.counts.secTx > 0) labels.push("証券取引");
+  if (row.counts.snapshot > 0) labels.push("資産スナップショット");
   return labels.join(" / ") || "-";
 };
 
@@ -65,8 +66,8 @@ export default function HistoryPage() {
                 <td className="p-2 whitespace-nowrap">{formatDateTime(r.importedAt)}</td>
                 <td className="p-2">{r.institution.name}</td>
                 <td className="p-2">{r.account.name}</td>
-                <td className="p-2 break-all">{r.fileName}</td>
-                <td className="p-2">{kindLabel(r.counts)}</td>
+                <td className="p-2 break-all">{r.source === "MANUAL" ? "" : r.fileName}</td>
+                <td className="p-2">{kindLabel(r)}</td>
                 <td className="p-2 text-right">{r.rowCount.toLocaleString()}</td>
                 <td className="p-2">{r.status}</td>
               </tr>

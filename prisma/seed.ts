@@ -17,6 +17,7 @@ const institutions = [
   { code: "rakuten_sec_jnisa", name: "楽天証券 ジュニアNISA", kind: "SECURITIES" },
   { code: "sbi_benefit", name: "SBIベネフィットシステムズ", kind: "DC" },
   { code: "resona", name: "りそな銀行", kind: "BANK" },
+  { code: "manual", name: "手動入力", kind: "MANUAL" },
 ];
 
 const categories: { name: string; kind: "EXPENSE" | "INCOME" | "TRANSFER" }[] = [

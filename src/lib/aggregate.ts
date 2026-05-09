@@ -13,6 +13,13 @@ export async function getAccountSummaries(): Promise<AccountSummary[]> {
   const accounts = await prisma.account.findMany({ include: { institution: true } });
   const out: AccountSummary[] = [];
   for (const acc of accounts) {
+    const lastImport = await prisma.import.findFirst({
+      where: { accountId: acc.id },
+      orderBy: { importedAt: "desc" },
+      select: { importedAt: true },
+    });
+    const asOf = lastImport ? lastImport.importedAt.toISOString() : null;
+
     if (acc.kind === "BROKERAGE" || acc.kind === "DC") {
       const snap = await prisma.holdingSnapshot.findFirst({
         where: { accountId: acc.id },
@@ -26,7 +33,7 @@ export async function getAccountSummaries(): Promise<AccountSummary[]> {
         institutionName: acc.institution.name,
         kind: acc.kind,
         balance: total,
-        asOf: snap ? snap.snapshotDate.toISOString() : null,
+        asOf,
       });
     } else {
       const last = await prisma.transaction.findFirst({
@@ -39,7 +46,7 @@ export async function getAccountSummaries(): Promise<AccountSummary[]> {
         institutionName: acc.institution.name,
         kind: acc.kind,
         balance: last?.balance ?? 0,
-        asOf: last ? last.occurredAt.toISOString() : null,
+        asOf,
       });
     }
   }

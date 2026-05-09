@@ -114,8 +114,8 @@ export default function TransactionsPage() {
                 <td className="p-1">
                   {t.account.institution.name}/{t.account.name}
                 </td>
-                <td className={`p-1 text-right ${t.amount < 0 ? "text-red-500" : "text-green-500"}`}>
-                  {t.amount.toLocaleString()}
+                <td className={`p-1 text-right ${t.amount < 0 ? "text-red-500" : t.amount > 0 ? "text-green-500" : ""}`}>
+                  {t.amount === 0 && t.payee === "残高記録" ? "" : t.amount.toLocaleString()}
                 </td>
                 <td className="p-1 text-right">{t.balance?.toLocaleString() ?? ""}</td>
                 <td className="p-1">{t.payee}</td>

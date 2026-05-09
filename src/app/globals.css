@@ -61,3 +61,16 @@ body {
   background: var(--surface);
   color: var(--foreground);
 }
+
+/* テーブル行の区切り線は薄めにする */
+table tbody tr.border-t {
+  border-top-color: color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+/* 数値表示は等幅フォント + 桁揃え。テーブルの右寄せセルと .num に適用。 */
+td.text-right,
+th.text-right,
+.num {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
