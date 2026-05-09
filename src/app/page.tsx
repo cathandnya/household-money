@@ -72,7 +72,21 @@ function shiftMonth(ym: string, delta: number): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+// タッチデバイスではグラフのツールチップを無効化する (タップで誤発火するため)
+function useIsCoarsePointer() {
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const update = () => setCoarse(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return coarse;
+}
+
 export default function Dashboard() {
+  const isCoarse = useIsCoarsePointer();
   const [data, setData] = useState<Summary | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(
     new Date().toISOString().slice(0, 7),
@@ -178,14 +192,16 @@ export default function Dashboard() {
                 tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                 stroke="var(--border)"
               />
-              <Tooltip
-                formatter={(v) => Number(v).toLocaleString() + "円"}
-                contentStyle={{
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                }}
-              />
+              {!isCoarse && (
+                <Tooltip
+                  formatter={(v) => Number(v).toLocaleString() + "円"}
+                  contentStyle={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                />
+              )}
               <Line type="monotone" dataKey="total" stroke="#3b82f6" dot={false} />
             </LineChart>
           </ResponsiveContainer>
@@ -255,6 +271,7 @@ function CategoryBreakdown({
   title: string;
   data: Array<{ name: string; value: number }>;
 }) {
+  const isCoarse = useIsCoarsePointer();
   const total = data.reduce((s, d) => s + d.value, 0);
   return (
     <div className="bg-surface border border-border-app p-4">
@@ -277,14 +294,16 @@ function CategoryBreakdown({
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip
-                  formatter={(v) => Number(v).toLocaleString() + "円"}
-                  contentStyle={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    color: "var(--foreground)",
-                  }}
-                />
+                {!isCoarse && (
+                  <Tooltip
+                    formatter={(v) => Number(v).toLocaleString() + "円"}
+                    contentStyle={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
+                    }}
+                  />
+                )}
               </PieChart>
             </ResponsiveContainer>
           </div>
