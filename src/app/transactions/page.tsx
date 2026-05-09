@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import RuleCreateDialog, { type RuleDialogTx } from "./RuleCreateDialog";
 
 type Tx = {
   id: number;
@@ -8,7 +9,12 @@ type Tx = {
   balance: number | null;
   payee: string;
   memo: string | null;
-  account: { id: number; name: string; institution: { name: string } };
+  account: {
+    id: number;
+    name: string;
+    kind: string;
+    institution: { name: string };
+  };
   category: { id: number; name: string } | null;
 };
 type Account = { id: number; name: string; institution: { name: string } };
@@ -23,6 +29,7 @@ export default function TransactionsPage() {
   const [categoryId, setCategoryId] = useState<string>("");
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
+  const [dialog, setDialog] = useState<{ tx: RuleDialogTx; category: Category } | null>(null);
 
   const reload = async () => {
     const params = new URLSearchParams();
@@ -48,12 +55,28 @@ export default function TransactionsPage() {
     return { inc, exp };
   }, [txs]);
 
-  const updateCategory = async (id: number, newCatId: string) => {
+  const updateCategory = async (tx: Tx, newCatId: string) => {
     await fetch("/api/transactions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, categoryId: newCatId ? Number(newCatId) : null }),
+      body: JSON.stringify({ id: tx.id, categoryId: newCatId ? Number(newCatId) : null }),
     });
+    // 新カテゴリが選ばれた場合、ルール作成ダイアログを開く (空に戻したときは開かない)
+    if (newCatId) {
+      const cat = categories.find((c) => c.id === Number(newCatId));
+      if (cat) {
+        setDialog({
+          tx: {
+            id: tx.id,
+            payee: tx.payee,
+            memo: tx.memo,
+            account: tx.account,
+          },
+          category: cat,
+        });
+        return;
+      }
+    }
     reload();
   };
 
@@ -95,6 +118,20 @@ export default function TransactionsPage() {
         {txs.length} 件 / 入金 {totals.inc.toLocaleString()} / 出金 {totals.exp.toLocaleString()}
       </p>
 
+      {dialog && (
+        <RuleCreateDialog
+          tx={dialog.tx}
+          category={dialog.category}
+          onClose={() => {
+            setDialog(null);
+            reload();
+          }}
+          onApplied={() => {
+            // 適用後の再読み込みは onClose で行う
+          }}
+        />
+      )}
+
       <div className="bg-surface border border-border-app overflow-auto">
         <table className="w-full text-xs">
           <thead className="bg-surface-muted sticky top-0">
@@ -123,7 +160,7 @@ export default function TransactionsPage() {
                   <select
                     className="border border-border-app text-xs"
                     value={t.category?.id ?? ""}
-                    onChange={(e) => updateCategory(t.id, e.target.value)}
+                    onChange={(e) => updateCategory(t, e.target.value)}
                   >
                     <option value="">-</option>
                     {categories.map((c) => (
