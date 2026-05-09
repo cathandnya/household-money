@@ -92,7 +92,8 @@ export default function RulesPage() {
       </div>
 
       <section className="bg-surface border border-border-app">
-        <table className="w-full text-sm">
+        {/* PC: テーブル */}
+        <table className="hidden md:table w-full text-sm">
           <thead className="bg-surface-muted">
             <tr>
               <th className="text-right p-2">優先度</th>
@@ -139,6 +140,59 @@ export default function RulesPage() {
             )}
           </tbody>
         </table>
+
+        {/* モバイル: カード */}
+        <ul className="md:hidden flex flex-col">
+          {rules.map((r) => {
+            const amt =
+              r.amountMin == null && r.amountMax == null
+                ? null
+                : r.amountMin != null && r.amountMax != null
+                  ? `${r.amountMin.toLocaleString()} 〜 ${r.amountMax.toLocaleString()}`
+                  : r.amountMin != null
+                    ? `${r.amountMin.toLocaleString()} 以上`
+                    : `${r.amountMax!.toLocaleString()} 以下`;
+            const fieldLabel = r.field === "MEMO" ? "メモ" : "摘要";
+            return (
+              <li
+                key={r.id}
+                className="border-t border-border-app/40 first:border-t-0 p-3 flex flex-col gap-1"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-mono break-all min-w-0 flex-1">
+                    {r.pattern}
+                  </span>
+                  <button
+                    onClick={() => remove(r.id)}
+                    aria-label="削除"
+                    className="w-11 h-11 flex items-center justify-center text-red-500 -m-2 flex-shrink-0"
+                  >
+                    🗑
+                  </button>
+                </div>
+                <div className="text-xs text-muted-foreground flex flex-wrap gap-x-2">
+                  <span>優先度 {r.priority}</span>
+                  <span>· {fieldLabel}</span>
+                  {r.isRegex && <span>· 正規表現</span>}
+                  {r.accountKindFilter && <span>· {r.accountKindFilter}</span>}
+                </div>
+                <div className="text-xs flex flex-wrap gap-x-2">
+                  {amt && (
+                    <span className="text-muted-foreground">
+                      金額 <span className="num">{amt}</span>
+                    </span>
+                  )}
+                  <span className="font-medium">→ {r.category.name}</span>
+                </div>
+              </li>
+            );
+          })}
+          {rules.length === 0 && (
+            <li className="p-4 text-sm text-muted-foreground text-center">
+              ルールがありません
+            </li>
+          )}
+        </ul>
       </section>
 
       <section className="bg-surface border border-border-app p-4 max-w-2xl">

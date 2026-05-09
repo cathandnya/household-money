@@ -62,16 +62,20 @@ body {
   color: var(--foreground);
 }
 
-/* テーブルが画面幅を超える場合は親要素を横スクロール (モバイル対応) */
-section:has(> table),
-div:has(> table) {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  max-width: 100%;
-}
-section:has(> table) > table,
-div:has(> table) > table {
-  min-width: max-content;
+/* PC (md 以上) のみ、テーブルが画面幅を超える場合は親要素を横スクロール。
+   モバイル (< 768px) では table を使わずカード形式に切り替えるため、ここで
+   横スクロールを発動させない (md:hidden で table が DOM から消える前提)。 */
+@media (min-width: 768px) {
+  section:has(> table),
+  div:has(> table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+  section:has(> table) > table,
+  div:has(> table) > table {
+    min-width: max-content;
+  }
 }
 
 /* テーブル行の区切り線は薄めにする */

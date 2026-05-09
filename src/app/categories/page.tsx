@@ -27,6 +27,36 @@ export default function CategoriesPage() {
     reload();
   };
 
+  const saveEdit = async (id: number) => {
+    if (!editName.trim()) return;
+    const res = await fetch(`/api/categories/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: editName.trim() }),
+    });
+    if (!res.ok) {
+      alert("更新失敗");
+      return;
+    }
+    setEditingId(null);
+    reload();
+  };
+
+  const removeCategory = async (c: Category) => {
+    if (
+      !confirm(
+        `カテゴリ「${c.name}」を削除しますか？\n紐づいている明細はカテゴリ未設定に戻ります。関連ルールも削除されます。`,
+      )
+    )
+      return;
+    const res = await fetch(`/api/categories/${c.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      alert("削除失敗");
+      return;
+    }
+    reload();
+  };
+
   const renderRow = (c: Category) => {
     const editing = editingId === c.id;
     return (
@@ -48,20 +78,7 @@ export default function CategoriesPage() {
             <div className="flex gap-1">
               <button
                 type="button"
-                onClick={async () => {
-                  if (!editName.trim()) return;
-                  const res = await fetch(`/api/categories/${c.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name: editName.trim() }),
-                  });
-                  if (!res.ok) {
-                    alert("更新失敗");
-                    return;
-                  }
-                  setEditingId(null);
-                  reload();
-                }}
+                onClick={() => saveEdit(c.id)}
                 className="bg-blue-600 text-white px-2 py-1 text-xs"
               >
                 保存
@@ -88,15 +105,7 @@ export default function CategoriesPage() {
               </button>
               <button
                 type="button"
-                onClick={async () => {
-                  if (!confirm(`カテゴリ「${c.name}」を削除しますか？\n紐づいている明細はカテゴリ未設定に戻ります。関連ルールも削除されます。`)) return;
-                  const res = await fetch(`/api/categories/${c.id}`, { method: "DELETE" });
-                  if (!res.ok) {
-                    alert("削除失敗");
-                    return;
-                  }
-                  reload();
-                }}
+                onClick={() => removeCategory(c)}
                 className="text-xs text-muted-foreground hover:text-red-500 px-2 py-1"
               >
                 削除
@@ -108,6 +117,64 @@ export default function CategoriesPage() {
     );
   };
 
+  const renderCard = (c: Category) => {
+    const editing = editingId === c.id;
+    return (
+      <li
+        key={c.id}
+        className="border-t border-border-app/40 first:border-t-0 p-3 flex items-center justify-between gap-2"
+      >
+        {editing ? (
+          <>
+            <input
+              className="flex-1 border border-border-app p-2 text-sm"
+              value={editName}
+              autoFocus
+              onChange={(e) => setEditName(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => saveEdit(c.id)}
+              className="bg-blue-600 text-white px-3 py-2 text-sm min-h-11"
+            >
+              保存
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingId(null)}
+              className="border border-border-app px-3 py-2 text-sm min-h-11"
+            >
+              取消
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="flex-1 break-all">{c.name}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingId(c.id);
+                setEditName(c.name);
+              }}
+              aria-label="編集"
+              className="w-11 h-11 flex items-center justify-center border border-border-app -m-1"
+            >
+              ✏︎
+            </button>
+            <button
+              type="button"
+              onClick={() => removeCategory(c)}
+              aria-label="削除"
+              className="w-11 h-11 flex items-center justify-center text-red-500 -m-1"
+            >
+              🗑
+            </button>
+          </>
+        )}
+      </li>
+    );
+  };
+
   const renderSection = (label: string, kindKey: string) => {
     const list = cats.filter((c) => c.kind === kindKey);
     return (
@@ -116,15 +183,21 @@ export default function CategoriesPage() {
         {list.length === 0 ? (
           <p className="text-sm text-muted-foreground">カテゴリなし</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-surface-muted">
-              <tr>
-                <th className="text-left p-2">名前</th>
-                <th className="text-left p-2 w-32">操作</th>
-              </tr>
-            </thead>
-            <tbody>{list.map(renderRow)}</tbody>
-          </table>
+          <>
+            {/* PC: テーブル */}
+            <table className="hidden md:table w-full text-sm">
+              <thead className="bg-surface-muted">
+                <tr>
+                  <th className="text-left p-2">名前</th>
+                  <th className="text-left p-2 w-32">操作</th>
+                </tr>
+              </thead>
+              <tbody>{list.map(renderRow)}</tbody>
+            </table>
+
+            {/* モバイル: カード */}
+            <ul className="md:hidden flex flex-col">{list.map(renderCard)}</ul>
+          </>
         )}
       </section>
     );

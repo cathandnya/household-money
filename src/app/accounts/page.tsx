@@ -119,7 +119,8 @@ export default function AccountsPage() {
 
       <section>
         <h2 className="font-bold mb-2">登録済み口座</h2>
-        <table className="w-full border border-border-app bg-surface text-sm">
+        {/* PC: テーブル */}
+        <table className="hidden md:table w-full border border-border-app bg-surface text-sm">
           <thead className="bg-surface-muted">
             <tr>
               <th className="text-left p-2">機関</th>
@@ -225,6 +226,101 @@ export default function AccountsPage() {
             )}
           </tbody>
         </table>
+
+        {/* モバイル: カード */}
+        <ul className="md:hidden flex flex-col gap-2">
+          {accounts.map((a) => {
+            const editing = editingId === a.id;
+            const editKindOptions = accountKinds[a.institution.kind] ?? [];
+            return (
+              <li
+                key={a.id}
+                className="bg-surface border border-border-app p-3 flex flex-col gap-2"
+              >
+                {editing ? (
+                  <>
+                    <div className="text-xs text-muted-foreground">{a.institution.name}</div>
+                    <input
+                      className="w-full border border-border-app p-2 text-sm"
+                      value={edit.name}
+                      onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+                      placeholder="口座名"
+                    />
+                    <select
+                      className="w-full border border-border-app p-2 text-sm"
+                      value={edit.kind}
+                      onChange={(e) => setEdit({ ...edit, kind: e.target.value })}
+                    >
+                      {editKindOptions.map((k) => (
+                        <option key={k} value={k}>
+                          {accountKindLabels[k] ?? k}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className="w-24 border border-border-app p-2 text-sm"
+                      value={edit.currency}
+                      onChange={(e) => setEdit({ ...edit, currency: e.target.value })}
+                      placeholder="通貨"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => saveEdit(a.id)}
+                        className="flex-1 bg-blue-600 text-white px-3 py-2 text-sm min-h-11"
+                      >
+                        保存
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        className="flex-1 border border-border-app px-3 py-2 text-sm min-h-11"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-medium break-all min-w-0 flex-1">
+                        {a.institution.name} / {a.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {a.currency}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {accountKindLabels[a.kind] ?? a.kind}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(a)}
+                        className="flex-1 border border-border-app px-3 py-2 text-sm min-h-11"
+                      >
+                        編集
+                      </button>
+                      {a.kind === "MANUAL" && (
+                        <Link
+                          href={`/accounts/${a.id}/balance`}
+                          className="flex-1 border border-border-app px-3 py-2 text-sm min-h-11 hover:text-blue-500 text-center"
+                        >
+                          残高記録
+                        </Link>
+                      )}
+                    </div>
+                  </>
+                )}
+              </li>
+            );
+          })}
+          {accounts.length === 0 && (
+            <li className="bg-surface border border-border-app p-4 text-sm text-muted-foreground text-center">
+              まだ口座が登録されていません
+            </li>
+          )}
+        </ul>
       </section>
 
       <section>

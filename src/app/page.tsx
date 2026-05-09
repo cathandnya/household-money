@@ -210,7 +210,8 @@ export default function Dashboard() {
 
       <section className="bg-surface border border-border-app p-4">
         <h3 className="font-bold mb-2">口座別残高</h3>
-        <table className="w-full text-sm">
+        {/* PC: テーブル */}
+        <table className="hidden md:table w-full text-sm">
           <thead className="bg-surface-muted">
             <tr>
               <th className="text-left p-2">機関</th>
@@ -250,6 +251,54 @@ export default function Dashboard() {
             )}
           </tbody>
         </table>
+
+        {/* モバイル: カード */}
+        <ul className="md:hidden flex flex-col gap-2">
+          {data.accounts.map((a) => {
+            const stale =
+              !a.asOf ||
+              Date.now() - new Date(a.asOf).getTime() > 31 * 24 * 60 * 60 * 1000;
+            return (
+              <li
+                key={a.accountId}
+                className="border border-border-app rounded-sm p-3 flex flex-col gap-1"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium break-all min-w-0 flex-1">
+                    {institutionUrls[a.institutionCode] ? (
+                      <a
+                        href={institutionUrls[a.institutionCode]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-blue-500 underline"
+                      >
+                        {a.institutionName}
+                      </a>
+                    ) : (
+                      a.institutionName
+                    )}
+                    {" / "}
+                    {a.accountName}
+                  </span>
+                  <span className="num font-bold whitespace-nowrap">
+                    {a.balance.toLocaleString()}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {accountKindLabels[a.kind] ?? a.kind} ·{" "}
+                  <span className={stale ? "text-red-500" : ""}>
+                    {a.asOf ? a.asOf.slice(0, 10) : "未取込"}
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+          {data.accounts.length === 0 && (
+            <li className="bg-surface border border-border-app p-4 text-sm text-muted-foreground text-center">
+              口座がまだ登録されていません
+            </li>
+          )}
+        </ul>
       </section>
     </div>
   );
@@ -307,7 +356,8 @@ function CategoryBreakdown({
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <table className="w-full text-xs mt-2">
+          {/* PC: テーブル */}
+          <table className="hidden md:table w-full text-xs mt-2">
             <thead className="bg-surface-muted">
               <tr>
                 <th className="text-left p-1">カテゴリ</th>
@@ -338,6 +388,37 @@ function CategoryBreakdown({
               </tr>
             </tbody>
           </table>
+
+          {/* モバイル: カード */}
+          <ul className="md:hidden flex flex-col gap-1 mt-2 text-xs">
+            {data.map((d, i) => (
+              <li
+                key={d.name}
+                className="flex items-baseline justify-between gap-2 p-2 border-t border-border-app/40"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="inline-block w-2 h-2 flex-shrink-0"
+                    style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+                  />
+                  <span className="break-all">{d.name}</span>
+                </span>
+                <span className="flex items-baseline gap-2 whitespace-nowrap">
+                  <span className="num">{d.value.toLocaleString()}</span>
+                  <span className="num text-muted-foreground">
+                    {total > 0 ? ((d.value / total) * 100).toFixed(1) : "0.0"}%
+                  </span>
+                </span>
+              </li>
+            ))}
+            <li className="flex items-baseline justify-between gap-2 p-2 border-t border-border-app font-bold">
+              <span>合計</span>
+              <span className="flex items-baseline gap-2 whitespace-nowrap">
+                <span className="num">{total.toLocaleString()}</span>
+                <span className="num">100.0%</span>
+              </span>
+            </li>
+          </ul>
         </>
       )}
     </div>

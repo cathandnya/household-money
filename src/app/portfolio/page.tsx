@@ -100,7 +100,8 @@ export default function PortfolioPage() {
 
       <section className="bg-surface border border-border-app p-4">
         <h2 className="font-bold mb-2">銘柄別 (口座横断)</h2>
-        <table className="w-full text-xs">
+        {/* PC: テーブル */}
+        <table className="hidden md:table w-full text-xs">
           <thead className="bg-surface-muted">
             <tr>
               <th className="text-left p-1">銘柄</th>
@@ -137,6 +138,53 @@ export default function PortfolioPage() {
             })}
           </tbody>
         </table>
+
+        {/* モバイル: カード */}
+        <ul className="md:hidden flex flex-col gap-2">
+          {totals.agg.map((h, i) => {
+            const pnl = h.hasCost ? h.marketValue - h.cost : null;
+            const pnlPct = pnl != null && h.cost > 0 ? (pnl / h.cost) * 100 : null;
+            const colorCls = pnl == null ? "" : pnl > 0 ? "text-green-500" : pnl < 0 ? "text-red-500" : "";
+            const ratio = totals.total
+              ? ((h.marketValue / totals.total) * 100).toFixed(1) + "%"
+              : "-";
+            return (
+              <li key={i} className="border border-border-app rounded-sm p-3 flex flex-col gap-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium break-all min-w-0 flex-1">
+                    {h.ticker ? `${h.ticker} ` : ""}
+                    {h.name}
+                  </span>
+                  <span className="num font-bold whitespace-nowrap">
+                    {h.marketValue.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>
+                    数量 <span className="num">{h.qty.toLocaleString()}</span>
+                    {" · 取得 "}
+                    <span className="num">
+                      {h.hasCost ? Math.round(h.cost).toLocaleString() : "-"}
+                    </span>
+                  </span>
+                  <span className={`num whitespace-nowrap ${colorCls}`}>
+                    {pnl == null
+                      ? "-"
+                      : (pnl >= 0 ? "+" : "") + Math.round(pnl).toLocaleString()}
+                    {pnlPct != null && (
+                      <span className="ml-1">
+                        ({(pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2)}%)
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  構成比 <span className="num">{ratio}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       {data.map((acc) => (
@@ -150,42 +198,91 @@ export default function PortfolioPage() {
           {acc.holdings.length === 0 ? (
             <p className="text-sm text-muted-foreground mt-2">スナップショット未取込</p>
           ) : (
-            <table className="w-full text-xs mt-2">
-              <thead className="bg-surface-muted">
-                <tr>
-                  <th className="text-left p-1">銘柄</th>
-                  <th className="text-right p-1">数量</th>
-                  <th className="text-right p-1">取得単価</th>
-                  <th className="text-right p-1">取得額</th>
-                  <th className="text-right p-1">評価額</th>
-                  <th className="text-right p-1">損益</th>
-                  <th className="text-right p-1">損益率</th>
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              {/* PC: テーブル */}
+              <table className="hidden md:table w-full text-xs mt-2">
+                <thead className="bg-surface-muted">
+                  <tr>
+                    <th className="text-left p-1">銘柄</th>
+                    <th className="text-right p-1">数量</th>
+                    <th className="text-right p-1">取得単価</th>
+                    <th className="text-right p-1">取得額</th>
+                    <th className="text-right p-1">評価額</th>
+                    <th className="text-right p-1">損益</th>
+                    <th className="text-right p-1">損益率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {acc.holdings.map((h, i) => {
+                    const cost = holdingCost(h);
+                    const pnl = cost != null ? h.marketValue - cost : null;
+                    const pnlPct = pnl != null && cost && cost > 0 ? (pnl / cost) * 100 : null;
+                    const colorCls = pnl == null ? "" : pnl > 0 ? "text-green-500" : pnl < 0 ? "text-red-500" : "";
+                    return (
+                      <tr key={i} className="border-t">
+                        <td className="p-1">{h.ticker ? `${h.ticker} ` : ""}{h.name}</td>
+                        <td className="p-1 text-right">{h.qty.toLocaleString()}</td>
+                        <td className="p-1 text-right">{h.avgCost?.toLocaleString() ?? "-"}</td>
+                        <td className="p-1 text-right">{cost != null ? Math.round(cost).toLocaleString() : "-"}</td>
+                        <td className="p-1 text-right">{h.marketValue.toLocaleString()}</td>
+                        <td className={`p-1 text-right ${colorCls}`}>
+                          {pnl == null ? "-" : (pnl >= 0 ? "+" : "") + Math.round(pnl).toLocaleString()}
+                        </td>
+                        <td className={`p-1 text-right ${colorCls}`}>
+                          {pnlPct == null ? "-" : (pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2) + "%"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* モバイル: カード */}
+              <ul className="md:hidden flex flex-col gap-2 mt-2">
                 {acc.holdings.map((h, i) => {
                   const cost = holdingCost(h);
                   const pnl = cost != null ? h.marketValue - cost : null;
                   const pnlPct = pnl != null && cost && cost > 0 ? (pnl / cost) * 100 : null;
                   const colorCls = pnl == null ? "" : pnl > 0 ? "text-green-500" : pnl < 0 ? "text-red-500" : "";
                   return (
-                    <tr key={i} className="border-t">
-                      <td className="p-1">{h.ticker ? `${h.ticker} ` : ""}{h.name}</td>
-                      <td className="p-1 text-right">{h.qty.toLocaleString()}</td>
-                      <td className="p-1 text-right">{h.avgCost?.toLocaleString() ?? "-"}</td>
-                      <td className="p-1 text-right">{cost != null ? Math.round(cost).toLocaleString() : "-"}</td>
-                      <td className="p-1 text-right">{h.marketValue.toLocaleString()}</td>
-                      <td className={`p-1 text-right ${colorCls}`}>
-                        {pnl == null ? "-" : (pnl >= 0 ? "+" : "") + Math.round(pnl).toLocaleString()}
-                      </td>
-                      <td className={`p-1 text-right ${colorCls}`}>
-                        {pnlPct == null ? "-" : (pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2) + "%"}
-                      </td>
-                    </tr>
+                    <li key={i} className="border border-border-app rounded-sm p-3 flex flex-col gap-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="font-medium break-all min-w-0 flex-1">
+                          {h.ticker ? `${h.ticker} ` : ""}
+                          {h.name}
+                        </span>
+                        <span className="num font-bold whitespace-nowrap">
+                          {h.marketValue.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>
+                          数量 <span className="num">{h.qty.toLocaleString()}</span>
+                          {h.avgCost != null && (
+                            <>
+                              {" · 単価 "}
+                              <span className="num">
+                                {h.avgCost.toLocaleString()}
+                              </span>
+                            </>
+                          )}
+                        </span>
+                        <span className={`num whitespace-nowrap ${colorCls}`}>
+                          {pnl == null
+                            ? "-"
+                            : (pnl >= 0 ? "+" : "") + Math.round(pnl).toLocaleString()}
+                          {pnlPct != null && (
+                            <span className="ml-1">
+                              ({(pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2)}%)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </li>
                   );
                 })}
-              </tbody>
-            </table>
+              </ul>
+            </>
           )}
         </section>
       ))}

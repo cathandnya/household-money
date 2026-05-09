@@ -519,7 +519,8 @@ function PreviewBlock({
             合計 {preview.total} 行 / 重複 {preview.duplicateRows} 行
           </p>
           <div className="max-h-96 overflow-auto">
-            <table className="w-full text-xs">
+            {/* PC: テーブル */}
+            <table className="hidden md:table w-full text-xs">
               <thead className="bg-surface-muted sticky top-0">
                 <tr>
                   <th className="text-left p-1">日付</th>
@@ -565,6 +566,66 @@ function PreviewBlock({
                 })}
               </tbody>
             </table>
+
+            {/* モバイル: カード */}
+            <ul className="md:hidden flex flex-col gap-2">
+              {preview.rows.slice(0, 200).map((r) => {
+                const cat = effectiveCategoryId(r.rowHash, r.suggestedCategoryId);
+                const amountColor =
+                  r.amount < 0 ? "text-red-500" : r.amount > 0 ? "text-green-500" : "";
+                return (
+                  <li
+                    key={r.rowHash}
+                    className={`border border-border-app rounded-sm p-3 flex flex-col gap-1 ${
+                      r.duplicate ? "opacity-60" : ""
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-medium break-all min-w-0 flex-1">
+                        {r.payee}
+                      </span>
+                      <span className={`num font-bold whitespace-nowrap ${amountColor}`}>
+                        {r.amount.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <span>
+                        {r.occurredAt.slice(0, 10)}
+                        {r.duplicate && (
+                          <span className="ml-2 px-1 bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded">
+                            重複
+                          </span>
+                        )}
+                      </span>
+                      {r.balance != null && (
+                        <span className="num whitespace-nowrap">
+                          残 {r.balance.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <select
+                      className="border border-border-app text-sm w-full p-2 min-h-11 mt-1 disabled:opacity-60"
+                      value={cat ?? ""}
+                      onChange={(e) =>
+                        onChangeCategory(
+                          r,
+                          e.target.value ? Number(e.target.value) : null,
+                        )
+                      }
+                      disabled={r.duplicate}
+                    >
+                      <option value="">カテゴリ未設定</option>
+                      {allCategories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </li>
+                );
+              })}
+            </ul>
+
             {preview.rows.length > 200 && (
               <p className="text-xs text-muted-foreground mt-1">先頭200行のみ表示</p>
             )}
@@ -576,7 +637,8 @@ function PreviewBlock({
           <p>
             合計 {preview.total} 行 / 重複 {preview.duplicateRows} 行
           </p>
-          <table className="w-full text-xs">
+          {/* PC: テーブル */}
+          <table className="hidden md:table w-full text-xs">
             <thead className="bg-surface-muted">
               <tr>
                 <th className="text-left p-1">約定日</th>
@@ -601,6 +663,37 @@ function PreviewBlock({
               ))}
             </tbody>
           </table>
+
+          {/* モバイル: カード */}
+          <ul className="md:hidden flex flex-col gap-2">
+            {preview.rows.slice(0, 200).map((r, i) => (
+              <li
+                key={i}
+                className={`border border-border-app rounded-sm p-3 flex flex-col gap-1 ${
+                  r.duplicate ? "opacity-60" : ""
+                }`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium break-all min-w-0 flex-1">
+                    {r.ticker ? `${r.ticker} ` : ""}
+                    {r.name}
+                  </span>
+                  <span className="num font-bold whitespace-nowrap">
+                    {r.amount.toLocaleString()}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {r.tradedAt.slice(0, 10)} · {r.side}
+                  {r.qty != null && (
+                    <>
+                      {" · 数量 "}
+                      <span className="num">{r.qty.toLocaleString()}</span>
+                    </>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
         </>
       )}
       {preview.kind === "snapshot" && (
@@ -612,7 +705,8 @@ function PreviewBlock({
           {preview.duplicateSnapshot && (
             <p className="text-red-500">⚠ 同じ日付のスナップショットが既に存在します</p>
           )}
-          <table className="w-full text-xs">
+          {/* PC: テーブル */}
+          <table className="hidden md:table w-full text-xs">
             <thead className="bg-surface-muted">
               <tr>
                 <th className="text-left p-1">銘柄</th>
@@ -633,6 +727,26 @@ function PreviewBlock({
               ))}
             </tbody>
           </table>
+
+          {/* モバイル: カード */}
+          <ul className="md:hidden flex flex-col gap-2">
+            {preview.holdings.map((h, i) => (
+              <li key={i} className="border border-border-app rounded-sm p-3 flex flex-col gap-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium break-all min-w-0 flex-1">
+                    {h.ticker ? `${h.ticker} ` : ""}
+                    {h.name}
+                  </span>
+                  <span className="num font-bold whitespace-nowrap">
+                    {h.marketValue.toLocaleString()}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  数量 <span className="num">{h.qty.toLocaleString()}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </>
       )}
     </div>

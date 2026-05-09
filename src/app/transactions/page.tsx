@@ -148,7 +148,8 @@ export default function TransactionsPage() {
         />
       )}
 
-      <div className="bg-surface border border-border-app overflow-auto">
+      {/* PC: テーブル */}
+      <div className="hidden md:block bg-surface border border-border-app overflow-auto">
         <table className="w-full text-xs">
           <thead className="bg-surface-muted sticky top-0">
             <tr>
@@ -199,6 +200,72 @@ export default function TransactionsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* モバイル: カード */}
+      <ul className="md:hidden flex flex-col gap-2">
+        {txs.map((t) => {
+          const showAmount = !(t.amount === 0 && t.payee === "残高記録");
+          const amountColor =
+            t.amount < 0
+              ? "text-red-500"
+              : t.amount > 0
+                ? "text-green-500"
+                : "";
+          return (
+            <li
+              key={t.id}
+              className="bg-surface border border-border-app p-3 flex flex-col gap-1"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-medium break-all min-w-0 flex-1">
+                  {t.payee}
+                </span>
+                {showAmount && (
+                  <span className={`num font-bold whitespace-nowrap ${amountColor}`}>
+                    {t.amount.toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span className="truncate">
+                  {t.occurredAt.slice(0, 10)} · {t.account.institution.name}/
+                  {t.account.name}
+                </span>
+                {t.balance != null && (
+                  <span className="num whitespace-nowrap">
+                    残 {t.balance.toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <select
+                className="border border-border-app text-sm w-full p-2 min-h-11 mt-1"
+                value={t.category?.id ?? ""}
+                onChange={(e) => updateCategory(t, e.target.value)}
+              >
+                <option value="">カテゴリ未設定</option>
+                {categories
+                  .filter((c) =>
+                    t.amount > 0
+                      ? c.kind === "INCOME" || c.kind === "TRANSFER"
+                      : t.amount < 0
+                        ? c.kind === "EXPENSE" || c.kind === "TRANSFER"
+                        : true,
+                  )
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </li>
+          );
+        })}
+        {txs.length === 0 && (
+          <li className="bg-surface border border-border-app p-4 text-sm text-muted-foreground text-center">
+            該当する取引がありません
+          </li>
+        )}
+      </ul>
     </div>
   );
 }
