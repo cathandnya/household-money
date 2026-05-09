@@ -11,9 +11,16 @@ import { parseAmount, parseFloatJp, parseJpDate } from "./util";
 // ヘッダ例: 約定日,銘柄コード,銘柄名,市場,取引区分,数量,単価,受渡金額,手数料,税
 export const rakutenSecTxAdapter: ParserAdapter = {
   code: "rakuten_sec_tx",
+  institutionCode: "rakuten_sec",
   label: "楽天証券 取引履歴",
   encoding: "auto",
   resultKind: "sec_tx",
+  detect(text: string): number {
+    const head = text.slice(0, 500);
+    if (/■/.test(head)) return 0; // 楽天証券のレポート CSV は別アダプタ
+    if (/(約定日|受渡日)/.test(head) && /銘柄/.test(head) && /(受渡金額|手数料)/.test(head)) return 0.9;
+    return 0;
+  },
   parse(text: string): ParseResult {
     const warnings: string[] = [];
     const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });
@@ -84,9 +91,15 @@ export const rakutenSecTxAdapter: ParserAdapter = {
 //     時価評価額[円],時価評価額[外貨],評価損益[円],評価損益[％]
 export const rakutenSecHoldingAdapter: ParserAdapter = {
   code: "rakuten_sec_holding",
+  institutionCode: "rakuten_sec",
   label: "楽天証券 保有商品 (スナップショット)",
   encoding: "auto",
   resultKind: "snapshot",
+  detect(text: string): number {
+    const head = text.slice(0, 1000);
+    if (/■資産合計欄/.test(head) || /■\s*保有商品詳細/.test(head)) return 1;
+    return 0;
+  },
   parse(text: string, fileName: string): ParseResult {
     const warnings: string[] = [];
     const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: false });

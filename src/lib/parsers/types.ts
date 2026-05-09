@@ -39,9 +39,13 @@ export type ParseResult =
   | { kind: "snapshot"; snapshot: ParsedSnapshot; warnings: string[] };
 
 export type ParserAdapter = {
-  code: string;                              // institution code
+  code: string;                              // adapter code
+  institutionCode: string;                   // 紐づく機関 code
   label: string;
   encoding: "sjis" | "utf8" | "jis" | "auto";
   resultKind: "tx" | "sec_tx" | "snapshot";
+  // デコード済みテキスト先頭部とファイル名から、自分のフォーマットか判定する。
+  // 確信度を 0-1 で返す。1 に近いほど確実。0 は非マッチ。
+  detect(text: string, fileName: string): number;
   parse(text: string, fileName: string): ParseResult;
 };

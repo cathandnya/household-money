@@ -8,9 +8,17 @@ import { parseAmount, parseJpDate } from "./util";
 //   例: 2026/03/16,ヨドバシカメラ　通信販売,3723,１,１,3723,
 export const smccAdapter: ParserAdapter = {
   code: "smcc",
+  institutionCode: "smcc",
   label: "三井住友カード 利用明細",
   encoding: "sjis",
   resultKind: "tx",
+  detect(text: string): number {
+    // 1行目が「氏名,カード番号(****マスク),カード名」のメタ情報行
+    const firstLine = text.split(/\r?\n/)[0] ?? "";
+    if (/\*+-\*+/.test(firstLine) && /様/.test(firstLine)) return 1;
+    if (/様/.test(firstLine) && /VISA|ＶＩＳＡ|Mastercard|ＭＡＳＴＥＲ/i.test(firstLine)) return 0.9;
+    return 0;
+  },
   parse(text: string): ParseResult {
     const warnings: string[] = [];
     const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });

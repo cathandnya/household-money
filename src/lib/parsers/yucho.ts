@@ -6,9 +6,15 @@ import { parseAmount, parseJpDate } from "./util";
 // 想定ヘッダ例: お取扱日,払出金額,預入金額,残高,備考  (口座種別で多少差異)
 export const yuchoAdapter: ParserAdapter = {
   code: "yucho",
+  institutionCode: "yucho",
   label: "ゆうちょ銀行 入出金明細",
   encoding: "sjis",
   resultKind: "tx",
+  detect(text: string): number {
+    const head = text.slice(0, 500);
+    if (/お取扱日/.test(head) && (/払出/.test(head) || /預入/.test(head))) return 1;
+    return 0;
+  },
   parse(text: string): ParseResult {
     const warnings: string[] = [];
     const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });

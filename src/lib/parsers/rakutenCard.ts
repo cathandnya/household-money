@@ -6,9 +6,17 @@ import { parseAmount, parseJpDate } from "./util";
 // ヘッダ例: 利用日,利用店名・商品名,利用者,支払方法,利用金額,支払手数料,支払総額,...
 export const rakutenCardAdapter: ParserAdapter = {
   code: "rakuten_card",
+  institutionCode: "rakuten_card",
   label: "楽天カード 利用明細",
   encoding: "auto",
   resultKind: "tx",
+  detect(text: string): number {
+    const head = text.slice(0, 500);
+    // 「6月繰越残高」「6月以降支払金額」「支払総額」など楽天カード特有
+    if (/利用日/.test(head) && /利用店名・商品名/.test(head) && /支払総額/.test(head)) return 1;
+    if (/利用日/.test(head) && /利用店名/.test(head) && /利用金額/.test(head)) return 0.7;
+    return 0;
+  },
   parse(text: string): ParseResult {
     const warnings: string[] = [];
     const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });

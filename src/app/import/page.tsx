@@ -1,9 +1,25 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-type Adapter = { code: string; label: string; resultKind: string };
-type Inst = { id: number; code: string; name: string; kind: string; adapters: Adapter[] };
-type Account = { id: number; name: string; kind: string; institution: { id: number; code: string; name: string } };
+type DetectResult = {
+  matched: Array<{
+    adapterCode: string;
+    adapterLabel: string;
+    institutionCode: string;
+    resultKind: string;
+    score: number;
+  }>;
+  top: {
+    adapterCode: string;
+    adapterLabel: string;
+    institutionCode: string;
+    resultKind: string;
+    score: number;
+  } | null;
+  institution: { id: number; code: string; name: string } | null;
+  candidateAccounts: Array<{ id: number; name: string; kind: string }>;
+  autoSelectedAccountId: number | null;
+};
 
 type Preview =
   | {
@@ -53,41 +69,137 @@ type Preview =
       holdings: Array<{ ticker?: string; name: string; qty: number; marketValue: number }>;
     };
 
+type AdapterOption = { code: string; label: string; resultKind: string };
+type Inst = { id: number; code: string; name: string; kind: string; adapters: AdapterOption[] };
+type Account = { id: number; name: string; kind: string; institution: { id: number; code: string; name: string } };
+
 export default function ImportPage() {
-  const [insts, setInsts] = useState<Inst[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [institutionId, setInstitutionId] = useState<number | "">("");
-  const [accountId, setAccountId] = useState<number | "">("");
-  const [adapterCode, setAdapterCode] = useState<string>("");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<Preview | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [allInsts, setAllInsts] = useState<Inst[]>([]);
+  const [allAccounts, setAllAccounts] = useState<Account[]>([]);
 
   useEffect(() => {
-    fetch("/api/institutions").then((r) => r.json()).then(setInsts);
-    fetch("/api/accounts").then((r) => r.json()).then(setAccounts);
+    fetch("/api/institutions").then((r) => r.json()).then(setAllInsts);
+    fetch("/api/accounts").then((r) => r.json()).then(setAllAccounts);
   }, []);
 
-  const filteredAccounts = useMemo(
-    () => (institutionId ? accounts.filter((a) => a.institution.id === institutionId) : []),
-    [accounts, institutionId],
-  );
-  const selectedInst = insts.find((i) => i.id === institutionId);
-  const adapterOptions = selectedInst?.adapters ?? [];
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">CSV取込</h1>
+      <p className="text-sm text-muted-foreground">
+        CSVファイルをドロップまたは選択すると、機関を自動判定します。
+        対応機関に口座が1つしか登録されていなければ、その口座へ自動で取り込みます。
+      </p>
 
-  const onPreview = async () => {
-    if (!file || !accountId || !adapterCode) return;
-    setLoading(true);
+      <DropZone onFilesAdded={(fs) => setFiles((prev) => [...prev, ...fs])} />
+
+      <div className="space-y-4">
+        {files.map((f, i) => (
+          <FileImportRow
+            key={`${f.name}-${i}-${f.lastModified}`}
+            file={f}
+            allInsts={allInsts}
+            allAccounts={allAccounts}
+            onRemove={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DropZone({ onFilesAdded }: { onFilesAdded: (fs: File[]) => void }) {
+  const [over, setOver] = useState(false);
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        const fs = Array.from(e.dataTransfer.files).filter(
+          (f) => /\.csv$/i.test(f.name) || f.type === "text/csv",
+        );
+        onFilesAdded(fs);
+      }}
+      className={`border-2 border-dashed rounded p-8 text-center ${
+        over ? "border-blue-500 bg-blue-500/10" : "border-border-app"
+      }`}
+    >
+      <p className="text-sm">CSVファイルをここにドロップ、または</p>
+      <label className="inline-block mt-2 bg-blue-600 text-white px-4 py-2 cursor-pointer">
+        ファイルを選択
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const fs = Array.from(e.target.files ?? []);
+            onFilesAdded(fs);
+            e.target.value = "";
+          }}
+        />
+      </label>
+    </div>
+  );
+}
+
+function FileImportRow({
+  file,
+  allInsts,
+  allAccounts,
+  onRemove,
+}: {
+  file: File;
+  allInsts: Inst[];
+  allAccounts: Account[];
+  onRemove: () => void;
+}) {
+  const [detect, setDetect] = useState<DetectResult | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [adapterCode, setAdapterCode] = useState<string>("");
+  const [accountId, setAccountId] = useState<number | "">("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [committed, setCommitted] = useState(false);
+
+  // 初回マウントで判定
+  useEffect(() => {
+    (async () => {
+      setBusy(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/import/detect", { method: "POST", body: fd });
+        const det: DetectResult = await res.json();
+        setDetect(det);
+        if (det.top) setAdapterCode(det.top.adapterCode);
+        if (det.autoSelectedAccountId && det.top) {
+          setAccountId(det.autoSelectedAccountId);
+          await runPreview(det.top.adapterCode, det.autoSelectedAccountId);
+        }
+      } finally {
+        setBusy(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const runPreview = async (adapter: string, acc: number) => {
+    setBusy(true);
     setMessage(null);
     setPreview(null);
     const fd = new FormData();
-    fd.append("accountId", String(accountId));
-    fd.append("adapterCode", adapterCode);
     fd.append("file", file);
+    fd.append("adapterCode", adapter);
+    fd.append("accountId", String(acc));
     const res = await fetch("/api/import/preview", { method: "POST", body: fd });
     const json = await res.json();
-    setLoading(false);
+    setBusy(false);
     if (!res.ok) {
       setMessage(json.error ?? "プレビュー失敗");
       return;
@@ -96,130 +208,142 @@ export default function ImportPage() {
   };
 
   const onCommit = async () => {
-    if (!file || !accountId || !adapterCode) return;
-    setLoading(true);
+    if (!adapterCode || !accountId) return;
+    setBusy(true);
     setMessage(null);
     const fd = new FormData();
-    fd.append("accountId", String(accountId));
-    fd.append("adapterCode", adapterCode);
     fd.append("file", file);
+    fd.append("adapterCode", adapterCode);
+    fd.append("accountId", String(accountId));
     const res = await fetch("/api/import/commit", { method: "POST", body: fd });
     const json = await res.json();
-    setLoading(false);
+    setBusy(false);
     if (!res.ok) {
       setMessage(`取込失敗: ${json.error ?? ""}`);
       return;
     }
+    setCommitted(true);
     setMessage(
       json.kind === "snapshot"
         ? `スナップショット取込: ${json.inserted} 件`
         : `取込完了: ${json.inserted} 件 / スキップ ${json.skipped} 件`,
     );
-    setPreview(null);
-    setFile(null);
   };
 
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">CSV取込</h1>
+  // adapterCode に対応する機関 → その機関の口座一覧を返す
+  const accountsForAdapter = (() => {
+    if (!adapterCode) return [];
+    const inst = allInsts.find((i) => i.adapters.some((a) => a.code === adapterCode));
+    if (!inst) return [];
+    return allAccounts.filter((a) => a.institution.id === inst.id);
+  })();
 
-      <div className="bg-surface border border-border-app p-4 space-y-3 max-w-2xl">
+  return (
+    <section className="bg-surface border border-border-app p-4 space-y-3">
+      <header className="flex items-center justify-between">
         <div>
-          <label className="block text-sm mb-1">機関</label>
+          <p className="font-bold">{file.name}</p>
+          {detect?.top ? (
+            <p className="text-xs text-muted-foreground">
+              判定: {detect.institution?.name} / {detect.top.adapterLabel}
+              <span className="ml-2">(確信度 {(detect.top.score * 100).toFixed(0)}%)</span>
+            </p>
+          ) : detect ? (
+            <p className="text-xs text-amber-500">機関を自動判定できませんでした。手動で選択してください。</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">判定中...</p>
+          )}
+        </div>
+        <button className="text-xs text-muted-foreground hover:text-red-500" onClick={onRemove}>
+          除外
+        </button>
+      </header>
+
+      {detect && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
           <select
-            className="w-full border border-border-app p-2"
-            value={institutionId}
+            className="border border-border-app p-2"
+            value={adapterCode}
             onChange={(e) => {
-              setInstitutionId(e.target.value ? Number(e.target.value) : "");
+              setAdapterCode(e.target.value);
               setAccountId("");
-              setAdapterCode("");
+              setPreview(null);
             }}
           >
-            <option value="">選択してください</option>
-            {insts.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name}
-              </option>
-            ))}
+            <option value="">CSVフォーマット</option>
+            {allInsts.flatMap((i) =>
+              i.adapters.map((a) => (
+                <option key={a.code} value={a.code}>
+                  {i.name} - {a.label}
+                </option>
+              )),
+            )}
           </select>
-        </div>
-        <div>
-          <label className="block text-sm mb-1">口座</label>
           <select
-            className="w-full border border-border-app p-2"
+            className="border border-border-app p-2"
             value={accountId}
-            onChange={(e) => setAccountId(e.target.value ? Number(e.target.value) : "")}
-            disabled={!selectedInst}
+            onChange={(e) => {
+              const v = e.target.value ? Number(e.target.value) : "";
+              setAccountId(v);
+              setPreview(null);
+              if (v && adapterCode) runPreview(adapterCode, v as number);
+            }}
+            disabled={!adapterCode}
           >
-            <option value="">選択してください</option>
-            {filteredAccounts.map((a) => (
+            <option value="">口座を選択</option>
+            {accountsForAdapter.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name} ({a.kind})
               </option>
             ))}
           </select>
-          {selectedInst && filteredAccounts.length === 0 && (
-            <p className="text-xs text-amber-500 mt-1">
-              この機関の口座が未登録です。「口座」ページから追加してください。
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm mb-1">CSVフォーマット</label>
-          <select
-            className="w-full border border-border-app p-2"
-            value={adapterCode}
-            onChange={(e) => setAdapterCode(e.target.value)}
-            disabled={!adapterOptions.length}
-          >
-            <option value="">選択してください</option>
-            {adapterOptions.map((a) => (
-              <option key={a.code} value={a.code}>
-                {a.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm mb-1">CSVファイル</label>
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className="bg-neutral-700 text-white px-4 py-2 disabled:bg-neutral-400"
-            onClick={onPreview}
-            disabled={loading || !file || !accountId || !adapterCode}
-          >
-            プレビュー
-          </button>
-          {preview && (
+          <div className="flex gap-2">
             <button
               type="button"
-              className="bg-blue-600 text-white px-4 py-2"
-              onClick={onCommit}
-              disabled={loading}
+              className="bg-neutral-700 text-white px-3 py-2 disabled:bg-neutral-400"
+              onClick={() =>
+                adapterCode && accountId && runPreview(adapterCode, accountId as number)
+              }
+              disabled={busy || !adapterCode || !accountId}
             >
-              この内容で取り込む
+              {busy ? "..." : "プレビュー"}
             </button>
-          )}
+            {preview && !committed && (
+              <button
+                type="button"
+                className="bg-blue-600 text-white px-3 py-2 disabled:bg-neutral-400"
+                onClick={onCommit}
+                disabled={busy}
+              >
+                取り込む
+              </button>
+            )}
+          </div>
         </div>
-        {message && <p className="text-sm">{message}</p>}
-      </div>
+      )}
 
+      {detect?.top && accountsForAdapter.length === 0 && (
+        <p className="text-sm text-amber-500">
+          {detect.institution?.name} の口座が登録されていません。
+          <a className="underline ml-1" href="/accounts">口座管理</a>
+          で先に登録してください。
+        </p>
+      )}
+      {detect?.top && accountsForAdapter.length >= 2 && !accountId && (
+        <p className="text-sm text-muted-foreground">
+          {detect.institution?.name} に複数の口座が登録されています。どの口座に取り込むか選択してください。
+        </p>
+      )}
+
+      {message && <p className="text-sm">{message}</p>}
       {preview && <PreviewBlock preview={preview} />}
-    </div>
+    </section>
   );
 }
 
 function PreviewBlock({ preview }: { preview: Preview }) {
   return (
-    <section className="bg-surface border border-border-app p-4 space-y-2 text-sm">
-      <h2 className="font-bold">プレビュー: {preview.fileName}</h2>
+    <div className="text-sm space-y-2">
       {preview.warnings.length > 0 && (
         <ul className="text-amber-500 list-disc pl-5">
           {preview.warnings.map((w, i) => (
@@ -235,7 +359,7 @@ function PreviewBlock({ preview }: { preview: Preview }) {
           <p>
             合計 {preview.total} 行 / 重複 {preview.duplicateRows} 行
           </p>
-          <div className="max-h-96 overflow-auto">
+          <div className="max-h-72 overflow-auto">
             <table className="w-full text-xs">
               <thead className="bg-surface-muted sticky top-0">
                 <tr>
@@ -248,7 +372,7 @@ function PreviewBlock({ preview }: { preview: Preview }) {
               </thead>
               <tbody>
                 {preview.rows.slice(0, 200).map((r) => (
-                  <tr key={r.rowHash} className={r.duplicate ? "text-neutral-400" : ""}>
+                  <tr key={r.rowHash} className={r.duplicate ? "text-muted-foreground" : ""}>
                     <td className="p-1">{r.occurredAt.slice(0, 10)}</td>
                     <td className="p-1 text-right">{r.amount.toLocaleString()}</td>
                     <td className="p-1 text-right">{r.balance?.toLocaleString() ?? ""}</td>
@@ -281,7 +405,7 @@ function PreviewBlock({ preview }: { preview: Preview }) {
             </thead>
             <tbody>
               {preview.rows.slice(0, 200).map((r, i) => (
-                <tr key={i} className={r.duplicate ? "text-neutral-400" : ""}>
+                <tr key={i} className={r.duplicate ? "text-muted-foreground" : ""}>
                   <td className="p-1">{r.tradedAt.slice(0, 10)}</td>
                   <td className="p-1">
                     {r.ticker ? `${r.ticker} ` : ""}
@@ -328,6 +452,6 @@ function PreviewBlock({ preview }: { preview: Preview }) {
           </table>
         </>
       )}
-    </section>
+    </div>
   );
 }

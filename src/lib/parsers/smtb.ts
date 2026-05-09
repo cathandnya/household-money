@@ -7,9 +7,15 @@ import { parseAmount, parseJpDate } from "./util";
 // 全銀フォーマット (固定長) は後日対応。
 export const smtbAdapter: ParserAdapter = {
   code: "smtb",
+  institutionCode: "smtb",
   label: "三井住友信託銀行 入出金明細",
   encoding: "auto",
   resultKind: "tx",
+  detect(text: string): number {
+    const head = text.slice(0, 500);
+    if (/計算日/.test(head) && /お取扱内容/.test(head)) return 1;
+    return 0;
+  },
   parse(text: string): ParseResult {
     const warnings: string[] = [];
     const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });

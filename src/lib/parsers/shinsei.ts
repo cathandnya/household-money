@@ -6,9 +6,17 @@ import { parseAmount, parseJpDate } from "./util";
 // ヘッダ例: 取引日,摘要,お支払金額,お預り金額,残高
 export const shinseiAdapter: ParserAdapter = {
   code: "shinsei",
+  institutionCode: "shinsei",
   label: "SBI新生銀行 入出金明細",
   encoding: "auto",
   resultKind: "tx",
+  detect(text: string): number {
+    const head = text.slice(0, 500);
+    // 出金金額/入金金額 という独特な見出しの組み合わせは新生銀行に近い
+    if (/取引日/.test(head) && /出金金額/.test(head) && /入金金額/.test(head)) return 1;
+    if (/取引日/.test(head) && /お支払金額/.test(head) && /お預り金額/.test(head)) return 0.9;
+    return 0;
+  },
   parse(text: string): ParseResult {
     const warnings: string[] = [];
     const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });

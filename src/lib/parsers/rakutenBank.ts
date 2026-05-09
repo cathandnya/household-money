@@ -6,9 +6,16 @@ import { parseAmount, parseJpDate } from "./util";
 // ヘッダ例: 取引日,入出金(円),取引後残高(円),入出金先内容
 export const rakutenBankAdapter: ParserAdapter = {
   code: "rakuten_bank",
+  institutionCode: "rakuten_bank",
   label: "楽天銀行 入出金明細",
   encoding: "auto",
   resultKind: "tx",
+  detect(text: string): number {
+    const head = text.slice(0, 500);
+    if (/取引日/.test(head) && /入出金\(円\)/.test(head) && /取引後残高\(円\)/.test(head)) return 1;
+    if (/取引日/.test(head) && /入出金/.test(head) && /残高/.test(head)) return 0.6;
+    return 0;
+  },
   parse(text: string): ParseResult {
     const warnings: string[] = [];
     const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });

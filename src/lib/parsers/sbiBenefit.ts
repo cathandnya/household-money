@@ -7,9 +7,16 @@ import { parseAmount, parseFloatJp } from "./util";
 // 取引明細のサポートは見送り (snapshot のみ)。
 export const sbiBenefitAdapter: ParserAdapter = {
   code: "sbi_benefit",
+  institutionCode: "sbi_benefit",
   label: "SBIベネフィット 残高スナップショット",
   encoding: "auto",
   resultKind: "snapshot",
+  detect(text: string, fileName: string): number {
+    const head = text.slice(0, 500);
+    if (/SBIベネフィット|ベネフィット・システムズ|加入者ID/.test(head)) return 1;
+    if (/sbi[_-]?benefit/i.test(fileName)) return 0.5;
+    return 0;
+  },
   parse(text: string, fileName: string): ParseResult {
     const warnings: string[] = [];
     const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });
