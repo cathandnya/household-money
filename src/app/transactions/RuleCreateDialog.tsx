@@ -20,7 +20,12 @@ type ExistingRule = {
 
 type PreviewResp = {
   matchCount: number;
-  sampleMatches: Array<{ id: number; payee: string; account: string }>;
+  sampleMatches: Array<{
+    id: number;
+    occurredAt: string;
+    payee: string;
+    account: string;
+  }>;
   truncated: boolean;
 };
 
@@ -289,13 +294,14 @@ export default function RuleCreateDialog({
           ) : preview ? (
             <>
               <p>
-                未分類のうち <strong>{preview.matchCount}</strong> 件にマッチ
+                他の未分類のうち <strong>{preview.matchCount}</strong> 件にマッチ
                 {preview.truncated && " (1000件まで走査)"}
               </p>
               {preview.sampleMatches.length > 0 && (
                 <ul className="text-muted-foreground mt-1 list-disc pl-4">
                   {preview.sampleMatches.map((m) => (
                     <li key={m.id} className="truncate">
+                      <span className="font-mono">{m.occurredAt.slice(0, 10)}</span>{" "}
                       {m.payee} <span className="opacity-70">@ {m.account}</span>
                     </li>
                   ))}
@@ -332,7 +338,7 @@ export default function RuleCreateDialog({
             onClick={() => createAndMaybeApply(true)}
             disabled={busy || !selected}
           >
-            作成して {preview?.matchCount ?? 0} 件に適用
+            作成して他の {preview?.matchCount ?? 0} 件に適用
           </button>
         </footer>
       </div>
