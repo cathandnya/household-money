@@ -74,7 +74,9 @@ type Inst = { id: number; code: string; name: string; kind: string; adapters: Ad
 type Account = { id: number; name: string; kind: string; institution: { id: number; code: string; name: string } };
 
 export default function ImportPage() {
-  const [files, setFiles] = useState<File[]>([]);
+  // 1 ファイルずつプレビュー → 取込/閉じるで次のファイルへ。
+  // プレビュー中は DropZone を非表示にして「途中で別ファイルが投入される」事故を防ぐ。
+  const [file, setFile] = useState<File | null>(null);
   const [allInsts, setAllInsts] = useState<Inst[]>([]);
   const [allAccounts, setAllAccounts] = useState<Account[]>([]);
 
@@ -91,19 +93,19 @@ export default function ImportPage() {
         対応機関に口座が1つしか登録されていなければ、その口座へ自動で取り込みます。
       </p>
 
-      <DropZone onFilesAdded={(fs) => setFiles((prev) => [...prev, ...fs])} />
+      {!file && (
+        <DropZone onFilesAdded={(fs) => fs[0] && setFile(fs[0])} />
+      )}
 
-      <div className="space-y-4">
-        {files.map((f, i) => (
-          <FileImportRow
-            key={`${f.name}-${i}-${f.lastModified}`}
-            file={f}
-            allInsts={allInsts}
-            allAccounts={allAccounts}
-            onRemove={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
-          />
-        ))}
-      </div>
+      {file && (
+        <FileImportRow
+          key={`${file.name}-${file.lastModified}`}
+          file={file}
+          allInsts={allInsts}
+          allAccounts={allAccounts}
+          onRemove={() => setFile(null)}
+        />
+      )}
     </div>
   );
 }
@@ -230,11 +232,13 @@ function FileImportRow({
     setPreview(null);
     setAccountId("");
     setAdapterCode("");
-    setMessage(
+    const summary =
       json.kind === "snapshot"
         ? `スナップショット取込: ${json.inserted} 件`
-        : `取込完了: ${json.inserted} 件 / スキップ ${json.skipped} 件`,
-    );
+        : `取込完了: ${json.inserted} 件 / スキップ ${json.skipped} 件`;
+    setMessage(summary);
+    // 取込結果を 1.2 秒だけ表示してから自動で閉じ、DropZone を復活させる
+    setTimeout(() => onRemove(), 1200);
   };
 
   // adapterCode に対応する機関 → その機関の口座一覧を返す
