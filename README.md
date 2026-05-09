@@ -42,6 +42,22 @@ npm run setup
 
 `npm run setup` は依存インストール → `data/money.db` 作成 (既存マイグレーション適用) → 機関マスタと初期カテゴリ投入をまとめて実行する。
 
+## アップデート
+
+リポジトリの更新を取り込むときも同じコマンドでよい:
+
+```bash
+git pull
+npm run setup
+```
+
+`npm run setup` は冪等 (何度実行しても問題ない):
+- `npm install` は package.json の差分だけ反映
+- `prisma migrate deploy` は未適用の migration だけ順に流す (既存データは無損失)
+- `prisma/seed.ts` は機関マスタとカテゴリを upsert (既存口座・取引には触らない)
+
+dev サーバ / 本番サーバが動いている場合は、SQLite ファイルロックを避けるため一旦停止してから実行する。
+
 ## 設定
 
 すべての設定は [.env](.env) (gitignore 済) に集約されている。サンプルは [.env.example](.env.example) を参照。
