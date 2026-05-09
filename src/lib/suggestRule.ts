@@ -6,8 +6,10 @@
 export type SuggestedKind =
   | "exact"
   | "stripDigits"
+  | "stripDateExpr"
   | "stripPrefix"
   | "stripPrefixDigits"
+  | "stripPrefixDateExpr"
   | "beforeParen"
   | "beforeSpace";
 
@@ -33,8 +35,6 @@ const KNOWN_PREFIXES: string[] = [
   "ＰＥ　",
   "ATM ",
   "ATM　",
-  "利息　",
-  "利息 ",
   "カード　",
   "カード ",
 ];
@@ -60,7 +60,10 @@ function looksMostlyDigitOrSymbol(s: string): boolean {
 
 function adjustScore(pattern: string, baseScore: number): number {
   let score = baseScore;
-  if (pattern.length < 3) score *= 0.3;
+  // 漢字を含めば 2 文字でも十分意味があるので減点しない
+  const hasKanji = /[一-鿿]/.test(pattern);
+  if (pattern.length < 3 && !hasKanji) score *= 0.3;
+  if (pattern.length < 2) score *= 0.3;
   if (looksMostlyDigitOrSymbol(pattern)) score *= 0.1;
   // 半角カナ + 英字混在で長さがそこそこなら少しブースト
   if (
@@ -99,6 +102,47 @@ function stripTrailingDigits(s: string): string | null {
   const head = m[1].replace(/[\s　]+$/, "");
   if (!head) return null;
   return head === s ? null : head;
+}
+
+// 末尾の「日付・年月・月」表現を取り除く。月毎に変わる定例取引 (家賃・ローン返済・利息など)
+// に対して恒常的なルールを作れるようにする。
+// 例:
+//   `ﾛｰﾝﾍﾝｻｲ05ｶﾞﾂ`         → `ﾛｰﾝﾍﾝｻｲ`
+//   `ローン返済5月`         → `ローン返済`
+//   `家賃 2026年04月分`     → `家賃`
+//   `利息　08-02-13ﾏﾃﾞ`     → `利息`
+//   `RENT 2026/04`          → `RENT`
+//   `税引前利息 03/15`      → `税引前利息`
+// 末尾の日付・年月表現を最長一致で除去するための候補正規表現群。
+// 全マッチのうち最長 (=最も多く食う) ものを採用することで、
+// `RENT 2026/04` の `2026/04` 全体を 1 度に削れる (短い `/04` だけ削って残骸を作らない)。
+const DATE_EXPR_PATTERNS: RegExp[] = [
+  // 半角カナ「YYYYﾈﾝ MMｶﾞﾂ DDﾆﾁ」「YY-MM-DDﾏﾃﾞ」など
+  /[\s　]*\d{1,4}ﾈﾝ\d{0,2}ｶﾞﾂ\d{0,2}ﾆﾁ?[ｦ-ﾟ]*$/,
+  /[\s　]*\d{1,4}[-/.]\d{1,2}[-/.]\d{1,2}[ｦ-ﾟ]*$/,
+  // 一般的な日付表記「YYYY-MM-DD」「YYYY/MM/DD」
+  /[\s　]*\d{1,4}[-/.]\d{1,2}[-/.]\d{1,2}$/,
+  // 「YYYY/MM」「YYYY-MM」 (年月だけ)
+  /[\s　]*\d{4}[-/.]\d{1,2}$/,
+  // 「YYYY年MM月DD日?分?」
+  /[\s　]*\d{1,4}年\d{1,2}月\d{0,2}日?分?$/,
+  // 「MMｶﾞﾂ」「MM月分?」「MM/DD」
+  /[\s　]*\d{1,2}ｶﾞﾂ$/,
+  /[\s　]*\d{1,2}月分?$/,
+  /[\s　]*\d{1,2}\/\d{1,2}$/,
+];
+
+function stripDateExpr(s: string): string | null {
+  // 最長マッチを採用 (短い候補が先に当たって残骸を残さないように)
+  let bestLen = 0;
+  for (const re of DATE_EXPR_PATTERNS) {
+    const m = s.match(re);
+    if (m && m[0].length > bestLen) bestLen = m[0].length;
+  }
+  if (bestLen === 0) return null;
+  const head = s.slice(0, s.length - bestLen).replace(/[\s　]+$/, "");
+  if (!head || head === s || head.length < 2) return null;
+  return head;
 }
 
 function stripKnownPrefix(s: string): string[] {
@@ -146,6 +190,12 @@ export function suggestRulePatterns(payee: string): SuggestedPattern[] {
     pushCandidate(out, stripped, 0.85, "stripDigits", "末尾の数字を除去");
   }
 
+  // (b') 末尾の日付・年月表現を除去 (`ﾛｰﾝﾍﾝｻｲ05ｶﾞﾂ` → `ﾛｰﾝﾍﾝｻｲ` 等)
+  const noDate = stripDateExpr(base);
+  if (noDate) {
+    pushCandidate(out, noDate, 0.9, "stripDateExpr", "末尾の日付・月表現を除去");
+  }
+
   // (c) 既知プレフィックス除去
   const noPrefixCandidates = stripKnownPrefix(base);
   for (const np of noPrefixCandidates) {
@@ -160,6 +210,17 @@ export function suggestRulePatterns(payee: string): SuggestedPattern[] {
         0.9,
         "stripPrefixDigits",
         "プレフィックスと末尾の数字を除去",
+      );
+    }
+    // (b')+(c) 複合: プレフィックス除去後に末尾の日付・月表現も削る
+    const combinedDate = stripDateExpr(np);
+    if (combinedDate && combinedDate !== np) {
+      pushCandidate(
+        out,
+        combinedDate,
+        0.92,
+        "stripPrefixDateExpr",
+        "プレフィックスと末尾の日付・月表現を除去",
       );
     }
   }
