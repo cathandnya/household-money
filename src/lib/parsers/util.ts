@@ -28,7 +28,8 @@ export function parseAmount(s: string | undefined | null): number {
 
 export function parseFloatJp(s: string | undefined | null): number | undefined {
   if (s == null) return undefined;
-  const cleaned = s.replace(/[",\s]/g, "").trim();
+  // 数値以外の単位 (円・口・株・％・パーセント・，など) を除去してから Number 化
+  const cleaned = s.replace(/[",¥￥円口株％%\s]/g, "").trim();
   if (!cleaned) return undefined;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : undefined;
