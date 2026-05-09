@@ -14,6 +14,7 @@ const institutions = [
   { code: "smcc", name: "三井住友カード", kind: "CARD" },
   { code: "rakuten_card", name: "楽天カード", kind: "CARD" },
   { code: "rakuten_sec", name: "楽天証券", kind: "SECURITIES" },
+  { code: "rakuten_sec_jnisa", name: "楽天証券 ジュニアNISA", kind: "SECURITIES" },
   { code: "sbi_benefit", name: "SBIベネフィットシステムズ", kind: "DC" },
   { code: "resona", name: "りそな銀行", kind: "BANK" },
 ];

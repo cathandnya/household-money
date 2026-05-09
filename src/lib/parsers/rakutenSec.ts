@@ -174,3 +174,94 @@ export const rakutenSecHoldingAdapter: TextParserAdapter = {
     return { kind: "snapshot", snapshot: { snapshotDate, holdings }, warnings };
   },
 };
+
+// --- 楽天証券 ジュニアNISA / NISA 投信保有 CSV ---
+// ヘッダ例:
+//   投資信託種別, 口座区分, ファンド, 分配金コース, 保有数量[口],
+//   (内訳　通常数量[口]), (内訳　積立数量[口]), 平均取得価額[円],
+//   取得総額[円], 基準価額[円], 基準価額(前日比)[円], 基準価額(前月比)[円],
+//   時価評価額[円], 評価損益[円], 評価損益[％], トータルリターン[円],
+//   通貨単位, 未収分配金, 参考為替レート, 時価評価額[外貨], 合計額[円]
+//
+// 既存の `rakuten_sec_holding` (■セクション形式) と区別するため、
+// 1 行目に「投資信託種別」と「ファンド」が同居していることで判定する。
+export const rakutenSecJnisaAdapter: TextParserAdapter = {
+  format: "text",
+  code: "rakuten_sec_jnisa",
+  institutionCode: "rakuten_sec_jnisa",
+  label: "楽天証券 投信保有 (ジュニアNISA/NISA, スナップショット)",
+  encoding: "auto",
+  resultKind: "snapshot",
+  detect(text: string): number {
+    const head = text.slice(0, 500);
+    if (/■/.test(head)) return 0; // マルチセクション形式は別アダプタ
+    if (/投資信託種別/.test(head) && /ファンド/.test(head) && /時価評価額/.test(head)) {
+      return 1;
+    }
+    return 0;
+  },
+  parse(text: string, fileName: string): ParseResult {
+    const warnings: string[] = [];
+    const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });
+    const rows = parsed.data as string[][];
+    if (rows.length === 0) {
+      return {
+        kind: "snapshot",
+        snapshot: { snapshotDate: new Date(), holdings: [] },
+        warnings: ["empty"],
+      };
+    }
+
+    // 日付はファイル名から (CSV 自体に日付情報がない)
+    let snapshotDate = new Date();
+    const m = fileName.match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+    if (m) snapshotDate = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    else {
+      snapshotDate.setUTCHours(0, 0, 0, 0);
+      warnings.push("ファイル名から日付を抽出できなかったため本日を採用");
+    }
+
+    const headerIdx = rows.findIndex(
+      (r) => r.some((c) => /投資信託種別/.test(c)) && r.some((c) => /ファンド/.test(c)),
+    );
+    if (headerIdx < 0) {
+      return {
+        kind: "snapshot",
+        snapshot: { snapshotDate, holdings: [] },
+        warnings: ["ヘッダー行が見つかりません"],
+      };
+    }
+    const header = rows[headerIdx].map((s) => s.trim());
+    const idx = (re: RegExp) => header.findIndex((h) => re.test(h));
+    const iName = idx(/^ファンド$|銘柄/);
+    const iAccount = idx(/口座区分/);
+    const iQty = idx(/^保有数量/);
+    const iAvg = idx(/平均取得価額/);
+    const iValueJpy = idx(/時価評価額\[円\]/);
+
+    if (iName < 0 || iValueJpy < 0) {
+      return {
+        kind: "snapshot",
+        snapshot: { snapshotDate, holdings: [] },
+        warnings: ["必須列なし"],
+      };
+    }
+
+    const holdings: ParsedHoldingRow[] = [];
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.every((c) => !c?.trim())) continue;
+      const name = (r[iName] ?? "").trim();
+      if (!name) continue;
+      const acc = iAccount >= 0 ? (r[iAccount] ?? "").trim() : "";
+      holdings.push({
+        ticker: undefined,
+        name: acc ? `${name} (${acc})` : name,
+        qty: iQty >= 0 ? parseFloatJp(r[iQty]) ?? 0 : 0,
+        avgCost: iAvg >= 0 ? parseFloatJp(r[iAvg]) : undefined,
+        marketValue: parseAmount(r[iValueJpy]),
+      });
+    }
+    return { kind: "snapshot", snapshot: { snapshotDate, holdings }, warnings };
+  },
+};

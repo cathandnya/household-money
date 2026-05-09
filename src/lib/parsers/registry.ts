@@ -5,7 +5,11 @@ import { yuchoAdapter } from "./yucho";
 import { smtbAdapter } from "./smtb";
 import { smccAdapter } from "./smcc";
 import { rakutenCardAdapter } from "./rakutenCard";
-import { rakutenSecTxAdapter, rakutenSecHoldingAdapter } from "./rakutenSec";
+import {
+  rakutenSecTxAdapter,
+  rakutenSecHoldingAdapter,
+  rakutenSecJnisaAdapter,
+} from "./rakutenSec";
 import { sbiBenefitAdapter } from "./sbiBenefit";
 import { resonaAdapter } from "./resona";
 
@@ -18,6 +22,7 @@ export const adapters: ParserAdapter[] = [
   rakutenCardAdapter,
   rakutenSecTxAdapter,
   rakutenSecHoldingAdapter,
+  rakutenSecJnisaAdapter,
   sbiBenefitAdapter,
   resonaAdapter,
 ];
@@ -35,6 +40,7 @@ export const institutionAdapterMap: Record<string, string[]> = {
   smcc: ["smcc"],
   rakuten_card: ["rakuten_card"],
   rakuten_sec: ["rakuten_sec_tx", "rakuten_sec_holding"],
+  rakuten_sec_jnisa: ["rakuten_sec_jnisa"],
   sbi_benefit: ["sbi_benefit"],
   resona: ["resona"],
 };
