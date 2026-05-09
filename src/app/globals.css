@@ -62,6 +62,18 @@ body {
   color: var(--foreground);
 }
 
+/* テーブルが画面幅を超える場合は親要素を横スクロール (モバイル対応) */
+section:has(> table),
+div:has(> table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+section:has(> table) > table,
+div:has(> table) > table {
+  min-width: max-content;
+}
+
 /* テーブル行の区切り線は薄めにする */
 table tbody tr.border-t {
   border-top-color: color-mix(in srgb, var(--border) 40%, transparent);
