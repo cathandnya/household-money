@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { decodeBuffer } from "@/lib/parsers/encoding";
 import { getAdapter } from "@/lib/parsers/registry";
-import { sha256, txRowHash, secTxRowHash } from "@/lib/dedupe";
+import { sha256, txRowHash, secTxRowHash, makeSeqAssigner } from "@/lib/dedupe";
 import { applyRules, loadActiveRules } from "@/lib/categorize";
 
 export const runtime = "nodejs";
@@ -31,13 +31,17 @@ export async function POST(req: NextRequest) {
   const rules = await loadActiveRules();
 
   if (result.kind === "tx") {
+    const seqOf = makeSeqAssigner<string>();
     const previewRows = result.rows.map((r) => {
+      const baseKey = `${r.occurredAt.toISOString().slice(0, 10)}|${r.amount}|${r.payee.trim()}|${r.balance ?? ""}`;
+      const seq = seqOf(baseKey);
       const rowHash = txRowHash({
         accountId,
         occurredAt: r.occurredAt,
         amount: r.amount,
         payee: r.payee,
         balance: r.balance ?? null,
+        seq,
       });
       const categoryId = applyRules(rules, {
         payee: r.payee,
@@ -76,25 +80,31 @@ export async function POST(req: NextRequest) {
   }
 
   if (result.kind === "sec_tx") {
-    const previewRows = result.rows.map((r) => ({
-      rowHash: secTxRowHash({
-        accountId,
-        tradedAt: r.tradedAt,
-        side: r.side,
-        name: r.name,
+    const seqOf = makeSeqAssigner<string>();
+    const previewRows = result.rows.map((r) => {
+      const baseKey = `${r.tradedAt.toISOString().slice(0, 10)}|${r.side}|${r.ticker ?? ""}|${r.name.trim()}|${r.amount}|${r.qty ?? ""}`;
+      const seq = seqOf(baseKey);
+      return {
+        rowHash: secTxRowHash({
+          accountId,
+          tradedAt: r.tradedAt,
+          side: r.side,
+          name: r.name,
+          ticker: r.ticker,
+          amount: r.amount,
+          qty: r.qty,
+          seq,
+        }),
+        tradedAt: r.tradedAt.toISOString(),
         ticker: r.ticker,
-        amount: r.amount,
+        name: r.name,
+        side: r.side,
         qty: r.qty,
-      }),
-      tradedAt: r.tradedAt.toISOString(),
-      ticker: r.ticker,
-      name: r.name,
-      side: r.side,
-      qty: r.qty,
-      price: r.price,
-      amount: r.amount,
-      fee: r.fee,
-    }));
+        price: r.price,
+        amount: r.amount,
+        fee: r.fee,
+      };
+    });
     const existingHashes = new Set(
       (
         await prisma.securityTransaction.findMany({

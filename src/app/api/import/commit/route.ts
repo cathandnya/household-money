@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { decodeBuffer } from "@/lib/parsers/encoding";
 import { getAdapter } from "@/lib/parsers/registry";
-import { sha256, txRowHash, secTxRowHash } from "@/lib/dedupe";
+import { sha256, txRowHash, secTxRowHash, makeSeqAssigner } from "@/lib/dedupe";
 import { applyRules, loadActiveRules } from "@/lib/categorize";
 
 export const runtime = "nodejs";
@@ -45,13 +45,17 @@ export async function POST(req: NextRequest) {
     });
     let inserted = 0;
     let skipped = 0;
+    const seqOf = makeSeqAssigner<string>();
     for (const r of result.rows) {
+      const baseKey = `${r.occurredAt.toISOString().slice(0, 10)}|${r.amount}|${r.payee.trim()}|${r.balance ?? ""}`;
+      const seq = seqOf(baseKey);
       const rowHash = txRowHash({
         accountId,
         occurredAt: r.occurredAt,
         amount: r.amount,
         payee: r.payee,
         balance: r.balance ?? null,
+        seq,
       });
       const categoryId = applyRules(rules, {
         payee: r.payee,
@@ -87,7 +91,10 @@ export async function POST(req: NextRequest) {
     });
     let inserted = 0;
     let skipped = 0;
+    const seqOf = makeSeqAssigner<string>();
     for (const r of result.rows) {
+      const baseKey = `${r.tradedAt.toISOString().slice(0, 10)}|${r.side}|${r.ticker ?? ""}|${r.name.trim()}|${r.amount}|${r.qty ?? ""}`;
+      const seq = seqOf(baseKey);
       const rowHash = secTxRowHash({
         accountId,
         tradedAt: r.tradedAt,
@@ -96,6 +103,7 @@ export async function POST(req: NextRequest) {
         ticker: r.ticker,
         amount: r.amount,
         qty: r.qty,
+        seq,
       });
       try {
         await prisma.securityTransaction.create({
