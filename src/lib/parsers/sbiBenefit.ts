@@ -1,11 +1,12 @@
 import Papa from "papaparse";
-import type { ParsedHoldingRow, ParserAdapter, ParseResult } from "./types";
+import type { ParsedHoldingRow, TextParserAdapter, ParseResult } from "./types";
 import { parseAmount, parseFloatJp } from "./util";
 
 // SBIベネフィットシステムズ (確定拠出年金) 保有商品スナップショット
 // 仕様詳細不明のため、ヘッダから「商品名/数量/評価額」を緩く抽出する。
 // 取引明細のサポートは見送り (snapshot のみ)。
-export const sbiBenefitAdapter: ParserAdapter = {
+export const sbiBenefitAdapter: TextParserAdapter = {
+  format: "text",
   code: "sbi_benefit",
   institutionCode: "sbi_benefit",
   label: "SBIベネフィット 残高スナップショット",

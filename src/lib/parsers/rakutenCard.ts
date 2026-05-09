@@ -1,10 +1,11 @@
 import Papa from "papaparse";
-import type { ParsedTxRow, ParserAdapter, ParseResult } from "./types";
+import type { ParsedTxRow, TextParserAdapter, ParseResult } from "./types";
 import { parseAmount, parseJpDate } from "./util";
 
 // 楽天カード 利用明細 CSV (UTF-8)
 // ヘッダ例: 利用日,利用店名・商品名,利用者,支払方法,利用金額,支払手数料,支払総額,...
-export const rakutenCardAdapter: ParserAdapter = {
+export const rakutenCardAdapter: TextParserAdapter = {
+  format: "text",
   code: "rakuten_card",
   institutionCode: "rakuten_card",
   label: "楽天カード 利用明細",

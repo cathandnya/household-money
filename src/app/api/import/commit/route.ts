@@ -29,8 +29,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "duplicate file", importId: existing.id }, { status: 409 });
   }
 
-  const text = decodeBuffer(buf, adapter.encoding);
-  const result = adapter.parse(text, file.name);
+  const result =
+    adapter.format === "pdf"
+      ? await adapter.parse(buf, file.name)
+      : adapter.parse(decodeBuffer(buf, adapter.encoding), file.name);
   const rules = await loadActiveRules();
 
   if (result.kind === "tx") {

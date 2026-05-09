@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import type { ParsedTxRow, ParserAdapter, ParseResult } from "./types";
+import type { ParsedTxRow, TextParserAdapter, ParseResult } from "./types";
 import { parseAmount, parseJpDate } from "./util";
 
 // ゆうちょ銀行 (ゆうちょダイレクト) 入出金明細 CSV (Shift_JIS)
@@ -9,7 +9,8 @@ import { parseAmount, parseJpDate } from "./util";
 //   その後にヘッダ行: 取引日, 入出金明細ＩＤ, 受入金額（円）, 払出金額（円）, 詳細１, 詳細２, 現在(貸付)高
 //   日付は YYYYMMDD の固定 8 桁数値。
 //   摘要は詳細１ + 詳細２ (例: 「ＰＥ」+「法務省」)
-export const yuchoAdapter: ParserAdapter = {
+export const yuchoAdapter: TextParserAdapter = {
+  format: "text",
   code: "yucho",
   institutionCode: "yucho",
   label: "ゆうちょ銀行 入出金明細",

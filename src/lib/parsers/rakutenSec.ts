@@ -2,14 +2,15 @@ import Papa from "papaparse";
 import type {
   ParsedHoldingRow,
   ParsedSecTxRow,
-  ParserAdapter,
+  TextParserAdapter,
   ParseResult,
 } from "./types";
 import { parseAmount, parseFloatJp, parseJpDate } from "./util";
 
 // --- 楽天証券 取引履歴 CSV ---
 // ヘッダ例: 約定日,銘柄コード,銘柄名,市場,取引区分,数量,単価,受渡金額,手数料,税
-export const rakutenSecTxAdapter: ParserAdapter = {
+export const rakutenSecTxAdapter: TextParserAdapter = {
+  format: "text",
   code: "rakuten_sec_tx",
   institutionCode: "rakuten_sec",
   label: "楽天証券 取引履歴",
@@ -89,7 +90,8 @@ export const rakutenSecTxAdapter: ParserAdapter = {
 //     種別,銘柄コード・ティッカー,銘柄,口座,保有数量,［単位］,平均取得価額,
 //     ［単位］,現在値,［単位］,現在値(更新日),(参考為替),前日比,［単位］,
 //     時価評価額[円],時価評価額[外貨],評価損益[円],評価損益[％]
-export const rakutenSecHoldingAdapter: ParserAdapter = {
+export const rakutenSecHoldingAdapter: TextParserAdapter = {
+  format: "text",
   code: "rakuten_sec_holding",
   institutionCode: "rakuten_sec",
   label: "楽天証券 保有商品 (スナップショット)",

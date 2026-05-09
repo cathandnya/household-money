@@ -18,7 +18,7 @@ export function parseJpDate(s: string): Date | null {
 export function parseAmount(s: string | undefined | null): number {
   if (s == null) return 0;
   const cleaned = s
-    .replace(/[",¥￥\s]/g, "")
+    .replace(/[",¥￥円\s]/g, "")
     .replace(/△/g, "-") // 三角記号を負号扱い
     .trim();
   if (!cleaned || cleaned === "-") return 0;

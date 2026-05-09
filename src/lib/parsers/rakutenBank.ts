@@ -1,10 +1,11 @@
 import Papa from "papaparse";
-import type { ParsedTxRow, ParserAdapter, ParseResult } from "./types";
+import type { ParsedTxRow, TextParserAdapter, ParseResult } from "./types";
 import { parseAmount, parseJpDate } from "./util";
 
 // 楽天銀行 入出金明細 CSV
 // ヘッダ例: 取引日,入出金(円),取引後残高(円),入出金先内容
-export const rakutenBankAdapter: ParserAdapter = {
+export const rakutenBankAdapter: TextParserAdapter = {
+  format: "text",
   code: "rakuten_bank",
   institutionCode: "rakuten_bank",
   label: "楽天銀行 入出金明細",

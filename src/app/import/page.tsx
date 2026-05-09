@@ -121,7 +121,10 @@ function DropZone({ onFilesAdded }: { onFilesAdded: (fs: File[]) => void }) {
         e.preventDefault();
         setOver(false);
         const fs = Array.from(e.dataTransfer.files).filter(
-          (f) => /\.csv$/i.test(f.name) || f.type === "text/csv",
+          (f) =>
+            /\.(csv|pdf)$/i.test(f.name) ||
+            f.type === "text/csv" ||
+            f.type === "application/pdf",
         );
         onFilesAdded(fs);
       }}
@@ -134,7 +137,7 @@ function DropZone({ onFilesAdded }: { onFilesAdded: (fs: File[]) => void }) {
         ファイルを選択
         <input
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,.pdf,text/csv,application/pdf"
           multiple
           className="hidden"
           onChange={(e) => {

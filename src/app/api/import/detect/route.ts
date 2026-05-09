@@ -15,13 +15,27 @@ export async function POST(req: NextRequest) {
   }
   const buf = Buffer.from(await file.arrayBuffer());
 
-  // 各アダプタごとに自分の encoding でデコードして detect スコアを取る。
-  // (テキストはアダプタが期待する文字コードでデコードしないと正規表現が当たらない)
-  const scored = adapters.map((a) => {
-    const text = decodeBuffer(buf, a.encoding);
-    const score = a.detect(text, file.name);
-    return { adapter: a, score };
-  });
+  // ファイルが PDF か CSV/テキストかを先頭バイトで判別。
+  const isPdf =
+    /\.pdf$/i.test(file.name) ||
+    file.type === "application/pdf" ||
+    buf.slice(0, 4).toString() === "%PDF";
+
+  // 該当 format のアダプタにのみ detect を回す。
+  const scored = await Promise.all(
+    adapters
+      .filter((a) => (isPdf ? a.format === "pdf" : a.format === "text"))
+      .map(async (a) => {
+        let score: number;
+        if (a.format === "pdf") {
+          score = await a.detect(buf, file.name);
+        } else {
+          const text = decodeBuffer(buf, a.encoding);
+          score = a.detect(text, file.name);
+        }
+        return { adapter: a, score };
+      }),
+  );
 
   const matched = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score);
   const top = matched[0];

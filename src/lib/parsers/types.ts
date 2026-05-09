@@ -38,14 +38,27 @@ export type ParseResult =
   | { kind: "sec_tx"; rows: ParsedSecTxRow[]; warnings: string[] }
   | { kind: "snapshot"; snapshot: ParsedSnapshot; warnings: string[] };
 
-export type ParserAdapter = {
-  code: string;                              // adapter code
-  institutionCode: string;                   // 紐づく機関 code
+// CSV / TXT 等のテキストベースアダプタ
+export type TextParserAdapter = {
+  format: "text";
+  code: string;
+  institutionCode: string;
   label: string;
   encoding: "sjis" | "utf8" | "jis" | "auto";
   resultKind: "tx" | "sec_tx" | "snapshot";
-  // デコード済みテキスト先頭部とファイル名から、自分のフォーマットか判定する。
-  // 確信度を 0-1 で返す。1 に近いほど確実。0 は非マッチ。
   detect(text: string, fileName: string): number;
   parse(text: string, fileName: string): ParseResult;
 };
+
+// PDF アダプタ (バイナリ入力)
+export type PdfParserAdapter = {
+  format: "pdf";
+  code: string;
+  institutionCode: string;
+  label: string;
+  resultKind: "tx" | "sec_tx" | "snapshot";
+  detect(buf: Buffer, fileName: string): Promise<number> | number;
+  parse(buf: Buffer, fileName: string): Promise<ParseResult>;
+};
+
+export type ParserAdapter = TextParserAdapter | PdfParserAdapter;

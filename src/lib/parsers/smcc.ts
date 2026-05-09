@@ -1,12 +1,13 @@
 import Papa from "papaparse";
-import type { ParsedTxRow, ParserAdapter, ParseResult } from "./types";
+import type { ParsedTxRow, TextParserAdapter, ParseResult } from "./types";
 import { parseAmount, parseJpDate } from "./util";
 
 // 三井住友カード Vpass 利用明細 CSV (Shift_JIS, ヘッダーレス)
 // 1行目: 「氏名,カード番号,カード名」のメタ情報行
 // 2行目以降: 利用日,利用先,利用金額,支払区分,今回回数,お支払い金額,手数料
 //   例: 2026/03/16,ヨドバシカメラ　通信販売,3723,１,１,3723,
-export const smccAdapter: ParserAdapter = {
+export const smccAdapter: TextParserAdapter = {
+  format: "text",
   code: "smcc",
   institutionCode: "smcc",
   label: "三井住友カード 利用明細",

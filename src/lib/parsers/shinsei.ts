@@ -1,10 +1,11 @@
 import Papa from "papaparse";
-import type { ParsedTxRow, ParserAdapter, ParseResult } from "./types";
+import type { ParsedTxRow, TextParserAdapter, ParseResult } from "./types";
 import { parseAmount, parseJpDate } from "./util";
 
 // SBI 新生銀行 入出金明細
 // ヘッダ例: 取引日,摘要,お支払金額,お預り金額,残高
-export const shinseiAdapter: ParserAdapter = {
+export const shinseiAdapter: TextParserAdapter = {
+  format: "text",
   code: "shinsei",
   institutionCode: "shinsei",
   label: "SBI新生銀行 入出金明細",

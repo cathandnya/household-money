@@ -25,8 +25,10 @@ export async function POST(req: NextRequest) {
   const buf = Buffer.from(await file.arrayBuffer());
   const fileHash = sha256(buf);
   const existing = await prisma.import.findUnique({ where: { fileHash } });
-  const fileText = decodeBuffer(buf, adapter.encoding);
-  const result = adapter.parse(fileText, file.name);
+  const result =
+    adapter.format === "pdf"
+      ? await adapter.parse(buf, file.name)
+      : adapter.parse(decodeBuffer(buf, adapter.encoding), file.name);
 
   const rules = await loadActiveRules();
 
