@@ -74,7 +74,14 @@ export const rakutenSecTxAdapter: ParserAdapter = {
 };
 
 // --- 楽天証券 保有商品スナップショット ---
-// ヘッダ例: 銘柄コード,銘柄名,保有数量,平均取得価額,現在値,評価額,評価損益
+// 楽天証券のポートフォリオ画面からダウンロードできるレポート CSV は
+//   ・「■資産合計欄」「■保有商品詳細」「■参考為替レート」など複数セクションが
+//     1ファイルに混在し、各セクション間は空行や見出し行で区切られる。
+// ここでは「保有商品詳細」セクションのテーブルだけを抽出する。
+//   テーブルヘッダ例:
+//     種別,銘柄コード・ティッカー,銘柄,口座,保有数量,［単位］,平均取得価額,
+//     ［単位］,現在値,［単位］,現在値(更新日),(参考為替),前日比,［単位］,
+//     時価評価額[円],時価評価額[外貨],評価損益[円],評価損益[％]
 export const rakutenSecHoldingAdapter: ParserAdapter = {
   code: "rakuten_sec_holding",
   label: "楽天証券 保有商品 (スナップショット)",
@@ -82,7 +89,7 @@ export const rakutenSecHoldingAdapter: ParserAdapter = {
   resultKind: "snapshot",
   parse(text: string, fileName: string): ParseResult {
     const warnings: string[] = [];
-    const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });
+    const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: false });
     const rows = parsed.data as string[][];
     if (rows.length === 0)
       return {
@@ -91,40 +98,62 @@ export const rakutenSecHoldingAdapter: ParserAdapter = {
         warnings: ["empty"],
       };
 
-    // ファイル名から日付を抽出 (YYYYMMDD)
-    let snapshotDate: Date = new Date();
-    const m = fileName.match(/(\d{4})(\d{2})(\d{2})/);
+    // ファイル名から日付を抽出 (YYYYMMDD or YYYY-MM-DD)
+    let snapshotDate = new Date();
+    const m = fileName.match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
     if (m) snapshotDate = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
     else {
       snapshotDate.setUTCHours(0, 0, 0, 0);
       warnings.push("ファイル名から日付を抽出できなかったため本日を採用");
     }
 
-    const headerIdx = rows.findIndex(
-      (r) => r.some((c) => /銘柄/.test(c)) && r.some((c) => /評価額|時価評価/.test(c)),
-    );
-    const header = rows[Math.max(headerIdx, 0)].map((s) => s.trim());
-    const dataRows = rows.slice(Math.max(headerIdx, 0) + 1);
+    // 「■ 保有商品詳細」セクションを探す → 直後のヘッダ行 → 次の空行 or 「■」までを取り出す
+    const sectionStart = rows.findIndex((r) => /保有商品詳細/.test(r[0] ?? ""));
+    if (sectionStart < 0) {
+      return {
+        kind: "snapshot",
+        snapshot: { snapshotDate, holdings: [] },
+        warnings: ["「保有商品詳細」セクションが見つかりません"],
+      };
+    }
+    // セクション開始以降で「銘柄」を含むヘッダ行を探す
+    const headerIdx = rows
+      .slice(sectionStart + 1)
+      .findIndex((r) => r.some((c) => /銘柄/.test(c)) && r.some((c) => /時価評価/.test(c)));
+    if (headerIdx < 0) {
+      return {
+        kind: "snapshot",
+        snapshot: { snapshotDate, holdings: [] },
+        warnings: ["保有商品詳細のヘッダ行が見つかりません"],
+      };
+    }
+    const absHeaderIdx = sectionStart + 1 + headerIdx;
+    const header = rows[absHeaderIdx].map((s) => s.trim());
     const idx = (re: RegExp) => header.findIndex((h) => re.test(h));
-    const iCode = idx(/コード/);
-    const iName = idx(/銘柄名|銘柄/);
+    const iCode = idx(/コード|ティッカー/);
+    // 「銘柄コード・ティッカー」と単独の「銘柄」を区別する: コード列を除外して銘柄名列を探す
+    const iName = header.findIndex(
+      (h, i) => i !== iCode && /^銘柄$|銘柄名/.test(h),
+    );
+    const iAccount = idx(/口座/);
     const iQty = idx(/保有数量|数量|株数|口数/);
     const iAvg = idx(/平均取得|取得単価/);
-    const iValue = idx(/評価額|時価評価/);
-    if (iName < 0 || iValue < 0)
-      return { kind: "snapshot", snapshot: { snapshotDate, holdings: [] }, warnings: ["必須列なし"] };
+    const iValueJpy = header.findIndex((h) => /時価評価額\[円\]/.test(h));
 
     const holdings: ParsedHoldingRow[] = [];
-    for (const r of dataRows) {
-      if (!r || r.every((c) => !c?.trim())) continue;
-      const name = (r[iName] ?? "").trim();
+    for (let i = absHeaderIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.every((c) => !c?.trim())) break; // 空行でセクション終了
+      if ((r[0] ?? "").startsWith("■")) break; // 次セクションで終了
+      const name = iName >= 0 ? (r[iName] ?? "").trim() : "";
       if (!name) continue;
+      const acc = iAccount >= 0 ? (r[iAccount] ?? "").trim() : "";
       holdings.push({
-        ticker: iCode >= 0 ? r[iCode]?.trim() : undefined,
-        name,
+        ticker: iCode >= 0 ? r[iCode]?.trim() || undefined : undefined,
+        name: acc ? `${name} (${acc})` : name,
         qty: iQty >= 0 ? parseFloatJp(r[iQty]) ?? 0 : 0,
         avgCost: iAvg >= 0 ? parseFloatJp(r[iAvg]) : undefined,
-        marketValue: parseAmount(r[iValue]),
+        marketValue: iValueJpy >= 0 ? parseAmount(r[iValueJpy]) : 0,
       });
     }
     return { kind: "snapshot", snapshot: { snapshotDate, holdings }, warnings };

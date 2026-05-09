@@ -2,8 +2,10 @@ import Papa from "papaparse";
 import type { ParsedTxRow, ParserAdapter, ParseResult } from "./types";
 import { parseAmount, parseJpDate } from "./util";
 
-// 三井住友カード Vpass 利用明細 CSV (Shift_JIS)
-// ヘッダ例: ご利用日,ご利用場所,ご利用者,支払区分,今回回数,お支払い金額
+// 三井住友カード Vpass 利用明細 CSV (Shift_JIS, ヘッダーレス)
+// 1行目: 「氏名,カード番号,カード名」のメタ情報行
+// 2行目以降: 利用日,利用先,利用金額,支払区分,今回回数,お支払い金額,手数料
+//   例: 2026/03/16,ヨドバシカメラ　通信販売,3723,１,１,3723,
 export const smccAdapter: ParserAdapter = {
   code: "smcc",
   label: "三井住友カード 利用明細",
@@ -14,30 +16,30 @@ export const smccAdapter: ParserAdapter = {
     const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });
     const rows = parsed.data as string[][];
     if (rows.length === 0) return { kind: "tx", rows: [], warnings: ["empty"] };
-    const headerIdx = rows.findIndex(
-      (r) => r.some((c) => /利用日/.test(c)) && r.some((c) => /利用(場所|店|先)/.test(c)),
-    );
-    const header = rows[Math.max(headerIdx, 0)].map((s) => s.trim());
-    const dataRows = rows.slice(Math.max(headerIdx, 0) + 1);
-    const idx = (re: RegExp) => header.findIndex((h) => re.test(h));
-    const iDate = idx(/利用日/);
-    const iPayee = idx(/利用(場所|店|先)/);
-    const iAmount = idx(/(お支払い金額|支払金額|利用金額)/);
-    const iUser = idx(/利用者/);
-    if (iDate < 0 || iPayee < 0 || iAmount < 0) {
-      return { kind: "tx", rows: [], warnings: ["必須列なし"] };
+
+    // 1行目から日付っぽい列を含まなければスキップ (カードメタ情報行)
+    let startIdx = 0;
+    if (rows[0] && !parseJpDate(rows[0][0] ?? "")) {
+      startIdx = 1;
     }
+
     const out: ParsedTxRow[] = [];
-    for (const r of dataRows) {
+    for (let i = startIdx; i < rows.length; i++) {
+      const r = rows[i];
       if (!r || r.every((c) => !c?.trim())) continue;
-      const date = parseJpDate(r[iDate] ?? "");
+      const date = parseJpDate(r[0] ?? "");
       if (!date) continue;
-      const amount = -Math.abs(parseAmount(r[iAmount])); // カード利用は出金扱い
-      const payee = (r[iPayee] ?? "").trim();
-      const memo = iUser >= 0 ? r[iUser]?.trim() : undefined;
+
+      const payee = (r[1] ?? "").trim();
+      // お支払い金額 (列 5) を優先、無ければ利用金額 (列 2)
+      const payAmount = parseAmount(r[5] ?? "");
+      const useAmount = parseAmount(r[2] ?? "");
+      const amountAbs = payAmount || useAmount;
+      const amount = -Math.abs(amountAbs); // カード利用は出金扱い
+
       const raw: Record<string, string> = {};
-      header.forEach((h, i) => (raw[h] = r[i] ?? ""));
-      out.push({ occurredAt: date, amount, payee, memo, raw });
+      r.forEach((c, i) => (raw[`col${i}`] = c ?? ""));
+      out.push({ occurredAt: date, amount, payee, raw });
     }
     return { kind: "tx", rows: out, warnings };
   },
