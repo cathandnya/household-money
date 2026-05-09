@@ -31,16 +31,39 @@ type PreviewResp = {
 
 type CategoryLite = { id: number; name: string };
 
+export type RuleScopeMatcher = (args: {
+  pattern: string;
+  isRegex: boolean;
+  field: "PAYEE" | "MEMO";
+  accountKindFilter: string | null;
+}) => { matchCount: number; sampleMatches: PreviewResp["sampleMatches"] };
+
 export default function RuleCreateDialog({
   tx,
   category,
   onClose,
   onApplied,
+  // 「N 件に適用」の対象スコープを切り替える props (任意)。
+  // 与えられた場合、DB のグローバル preview / apply-now ではなくクライアント側の
+  // 集合に対して件数表示と適用を行う (例: 取込プレビュー画面でそのプレビュー
+  // 内だけに適用する用途)。
+  scope,
 }: {
   tx: RuleDialogTx;
   category: CategoryLite;
   onClose: () => void;
   onApplied: () => void;
+  scope?: {
+    label: string; // 「他の未分類のうち」の代わりに表示する説明 (例: "プレビュー内の他の行のうち")
+    matcher: RuleScopeMatcher;
+    onApplyToScope: (args: {
+      pattern: string;
+      isRegex: boolean;
+      field: "PAYEE" | "MEMO";
+      accountKindFilter: string | null;
+      categoryId: number;
+    }) => void;
+  };
 }) {
   const candidates = useMemo(() => suggestRulePatterns(tx.payee), [tx.payee]);
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -82,11 +105,17 @@ export default function RuleCreateDialog({
     );
   }, [existingRules, selected, field, accountKindOn, tx.account.kind, isRegex]);
 
-  // プレビュー (debounce 300ms)
+  // プレビュー件数取得。scope が指定されていればクライアント側で同期計算、
+  // なければ /api/rules/preview を debounce で叩く。
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!selected) {
       setPreview(null);
+      return;
+    }
+    if (scope) {
+      const r = scope.matcher({ pattern: selected.pattern, isRegex, field, accountKindFilter });
+      setPreview({ matchCount: r.matchCount, sampleMatches: r.sampleMatches, truncated: false });
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -109,6 +138,7 @@ export default function RuleCreateDialog({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.pattern, isRegex, field, accountKindFilter]);
 
   const createAndMaybeApply = async (alsoApply: boolean) => {
@@ -147,17 +177,31 @@ export default function RuleCreateDialog({
       const rule = await createRes.json();
 
       if (alsoApply) {
-        const applyRes = await fetch("/api/rules/apply-now", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ruleId: rule.id }),
-        });
-        const appliedJson = await applyRes.json();
-        setMessage(
-          appliedJson.updated != null
-            ? `ルールを作成し、${appliedJson.updated} 件に適用しました`
-            : `ルールは作成されましたが適用に失敗しました`,
-        );
+        if (scope) {
+          // クライアント側のスコープに適用 (DB の他取引には触らない)
+          scope.onApplyToScope({
+            pattern: selected.pattern,
+            isRegex,
+            field,
+            accountKindFilter,
+            categoryId: category.id,
+          });
+          setMessage(
+            `ルールを作成し、${preview?.matchCount ?? 0} 件に適用しました`,
+          );
+        } else {
+          const applyRes = await fetch("/api/rules/apply-now", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ruleId: rule.id }),
+          });
+          const appliedJson = await applyRes.json();
+          setMessage(
+            appliedJson.updated != null
+              ? `ルールを作成し、${appliedJson.updated} 件に適用しました`
+              : `ルールは作成されましたが適用に失敗しました`,
+          );
+        }
       } else {
         setMessage("ルールを作成しました");
       }
@@ -294,7 +338,7 @@ export default function RuleCreateDialog({
           ) : preview ? (
             <>
               <p>
-                他の未分類のうち <strong>{preview.matchCount}</strong> 件にマッチ
+                {scope?.label ?? "他の未分類のうち"} <strong>{preview.matchCount}</strong> 件にマッチ
                 {preview.truncated && " (1000件まで走査)"}
               </p>
               {preview.sampleMatches.length > 0 && (

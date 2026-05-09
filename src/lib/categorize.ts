@@ -1,35 +1,9 @@
 import { prisma } from "./db";
+import { matchRule, type RuleEvalInput } from "./matchRule";
 
-export type RuleEvalInput = {
-  payee: string;
-  memo?: string | null;
-  accountKind: string;
-};
-
-// applyRules / preview / apply-now で共通利用する判定基準。
-// 完全な Rule モデルでなくても OK なように Pick したフィールド集合を要求する。
-export type RuleLike = {
-  pattern: string;
-  isRegex: boolean;
-  field: string;
-  accountKindFilter: string | null;
-};
-
-export function matchRule(rule: RuleLike, input: RuleEvalInput): boolean {
-  if (rule.accountKindFilter && rule.accountKindFilter !== input.accountKind) {
-    return false;
-  }
-  const target = rule.field === "MEMO" ? input.memo ?? "" : input.payee;
-  if (!target) return false;
-  if (rule.isRegex) {
-    try {
-      return new RegExp(rule.pattern).test(target);
-    } catch {
-      return false;
-    }
-  }
-  return target.includes(rule.pattern);
-}
+// matchRule 系の純関数はクライアントでも使うため別ファイルに分離。
+// 既存の import パスとの互換のためここから re-export する。
+export { matchRule, type RuleLike, type RuleEvalInput } from "./matchRule";
 
 export async function loadActiveRules() {
   return prisma.rule.findMany({

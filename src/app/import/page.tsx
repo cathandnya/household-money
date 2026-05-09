@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import RuleCreateDialog from "../transactions/RuleCreateDialog";
+import { matchRule } from "@/lib/matchRule";
 
 type DetectResult = {
   matched: Array<{
@@ -181,6 +183,14 @@ function FileImportRow({
   // tx プレビューで rowHash → 選択 categoryId (null は明示的にカテゴリなし)
   // preview を再取得するたびにリセットされる。
   const [overrides, setOverrides] = useState<Record<string, number | null>>({});
+  // ルール作成ダイアログを開く対象行 + 選択カテゴリ
+  const [ruleDialog, setRuleDialog] = useState<{
+    rowHash: string;
+    payee: string;
+    memo: string | null;
+    accountKind: string;
+    category: { id: number; name: string };
+  } | null>(null);
 
   // 初回マウントで判定
   useEffect(() => {
@@ -261,6 +271,11 @@ function FileImportRow({
     if (!inst) return [];
     return allAccounts.filter((a) => a.institution.id === inst.id);
   })();
+
+  // 現在選択中の口座オブジェクト
+  const account = typeof accountId === "number"
+    ? allAccounts.find((a) => a.id === accountId)
+    : undefined;
 
   return (
     <section className="bg-surface border border-border-app p-4 space-y-3">
@@ -369,14 +384,97 @@ function FileImportRow({
           preview={preview}
           allCategories={allCategories}
           overrides={overrides}
-          onChangeCategory={(rowHash, catId) =>
-            setOverrides((prev) => ({ ...prev, [rowHash]: catId }))
-          }
+          onChangeCategory={(row, catId) => {
+            // override を更新
+            setOverrides((prev) => ({ ...prev, [row.rowHash]: catId }));
+            // 新しいカテゴリが選ばれたらルール作成ダイアログを開く
+            if (catId != null) {
+              const cat = allCategories.find((c) => c.id === catId);
+              if (cat && account) {
+                setRuleDialog({
+                  rowHash: row.rowHash,
+                  payee: row.payee,
+                  memo: row.memo ?? null,
+                  accountKind: account.kind,
+                  category: { id: cat.id, name: cat.name },
+                });
+              }
+            }
+          }}
+        />
+      )}
+
+      {ruleDialog && preview?.kind === "tx" && (
+        <RuleCreateDialog
+          tx={{
+            id: 0,
+            payee: ruleDialog.payee,
+            memo: ruleDialog.memo,
+            account: {
+              kind: ruleDialog.accountKind,
+              name: account?.name ?? "",
+              institution: { name: account?.institution.name ?? "" },
+            },
+          }}
+          category={ruleDialog.category}
+          onClose={() => setRuleDialog(null)}
+          onApplied={() => {
+            // ルール作成だけなら overrides は変更しない (このダイアログを開いた
+            // 起点行の categoryId は既に overrides に入っている)
+          }}
+          scope={{
+            label: "プレビュー内の他の行のうち",
+            matcher: ({ pattern, isRegex, field, accountKindFilter }) => {
+              if (preview.kind !== "tx" || !account) return { matchCount: 0, sampleMatches: [] };
+              const rule = { pattern, isRegex, field, accountKindFilter };
+              const matched = preview.rows.filter((r) => {
+                if (r.rowHash === ruleDialog.rowHash) return false; // 起点行は除外
+                if (r.duplicate) return false;
+                return matchRule(rule, {
+                  payee: r.payee,
+                  memo: r.memo ?? null,
+                  accountKind: account.kind,
+                });
+              });
+              return {
+                matchCount: matched.length,
+                sampleMatches: matched.slice(0, 5).map((r) => ({
+                  id: 0,
+                  occurredAt: r.occurredAt,
+                  payee: r.payee,
+                  account: `${account.institution.name}/${account.name}`,
+                })),
+              };
+            },
+            onApplyToScope: ({ pattern, isRegex, field, accountKindFilter, categoryId }) => {
+              if (preview.kind !== "tx" || !account) return;
+              const rule = { pattern, isRegex, field, accountKindFilter };
+              setOverrides((prev) => {
+                const next = { ...prev };
+                for (const r of preview.rows) {
+                  if (r.rowHash === ruleDialog.rowHash) continue;
+                  if (r.duplicate) continue;
+                  if (
+                    matchRule(rule, {
+                      payee: r.payee,
+                      memo: r.memo ?? null,
+                      accountKind: account.kind,
+                    })
+                  ) {
+                    next[r.rowHash] = categoryId;
+                  }
+                }
+                return next;
+              });
+            },
+          }}
         />
       )}
     </section>
   );
 }
+
+type TxPreviewRow = Extract<Preview, { kind: "tx" }>["rows"][number];
 
 function PreviewBlock({
   preview,
@@ -387,7 +485,7 @@ function PreviewBlock({
   preview: Preview;
   allCategories: Category[];
   overrides: Record<string, number | null>;
-  onChangeCategory: (rowHash: string, categoryId: number | null) => void;
+  onChangeCategory: (row: TxPreviewRow, categoryId: number | null) => void;
 }) {
   // tx 行で実際に保存される categoryId (override > suggestedCategoryId)
   const effectiveCategoryId = (rowHash: string, suggested: number | null) =>
@@ -437,7 +535,7 @@ function PreviewBlock({
                           value={cat ?? ""}
                           onChange={(e) =>
                             onChangeCategory(
-                              r.rowHash,
+                              r,
                               e.target.value ? Number(e.target.value) : null,
                             )
                           }
