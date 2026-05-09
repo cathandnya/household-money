@@ -8,7 +8,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   title: "household-money - 個人資産管理",
-  description: "銀行・カード・証券のCSVを取り込んで一元管理",
+  description: "銀行・カード・証券の明細を取り込んで一元管理",
   appleWebApp: {
     capable: true,
     title: "Household",

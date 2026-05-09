@@ -85,9 +85,9 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">CSV取込</h1>
+      <h1 className="text-2xl font-bold">取込</h1>
       <p className="text-sm text-muted-foreground">
-        CSVファイルをドロップまたは選択すると、機関を自動判定します。
+        CSV / PDF / HTML ファイルをドロップまたは選択すると、機関を自動判定します。
         対応機関に口座が1つしか登録されていなければ、その口座へ自動で取り込みます。
       </p>
 
@@ -133,7 +133,7 @@ function DropZone({ onFilesAdded }: { onFilesAdded: (fs: File[]) => void }) {
         over ? "border-blue-500 bg-blue-500/10" : "border-border-app"
       }`}
     >
-      <p className="text-sm">CSVファイルをここにドロップ、または</p>
+      <p className="text-sm">CSV / PDF / HTML ファイルをここにドロップ、または</p>
       <label className="inline-block mt-2 bg-blue-600 text-white px-4 py-2 cursor-pointer">
         ファイルを選択
         <input
@@ -281,7 +281,7 @@ function FileImportRow({
               setPreview(null);
             }}
           >
-            <option value="">CSVフォーマット</option>
+            <option value="">フォーマット</option>
             {allInsts.flatMap((i) =>
               i.adapters.map((a) => (
                 <option key={a.code} value={a.code}>
