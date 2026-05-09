@@ -84,9 +84,40 @@ export async function getMonthlyCategorySummary(months = 12): Promise<MonthlyCat
   );
 }
 
-// 日次の資産推移 (現金口座は balance の各日最終値、証券は snapshot 日のみ、未取得日は前方補完して合算)
+export type MonthlyFlow = { month: string; income: number; expense: number };
+
+// 月別の収入/支出合計。category.kind があればそれに従い、未分類は金額の符号で判定。
+// TRANSFER (口座振替・カード引落) は除外。
+export async function getMonthlyIncomeExpense(months = 12): Promise<MonthlyFlow[]> {
+  const since = new Date();
+  since.setMonth(since.getMonth() - months);
+  since.setUTCDate(1);
+  since.setUTCHours(0, 0, 0, 0);
+
+  const txs = await prisma.transaction.findMany({
+    where: { occurredAt: { gte: since } },
+    include: { category: true },
+  });
+  const map = new Map<string, MonthlyFlow>();
+  for (const t of txs) {
+    const kind = t.category?.kind;
+    if (kind === "TRANSFER") continue;
+    const month = t.occurredAt.toISOString().slice(0, 7);
+    const flow = map.get(month) ?? { month, income: 0, expense: 0 };
+    const isIncome = kind === "INCOME" || (kind == null && t.amount > 0);
+    const isExpense = kind === "EXPENSE" || (kind == null && t.amount < 0);
+    if (isIncome) flow.income += t.amount;
+    else if (isExpense) flow.expense += t.amount;
+    map.set(month, flow);
+  }
+  return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
+}
+
+// 日次の資産推移 (銀行は balance の各日最終値、証券/DC は snapshot 日のみ、未取得日は前方補完して合算。クレカは除外)
 export async function getAssetTimeline(days = 365): Promise<Array<{ date: string; total: number }>> {
-  const accounts = await prisma.account.findMany();
+  const accounts = await prisma.account.findMany({
+    where: { kind: { not: "CREDIT_CARD" } },
+  });
   const since = new Date();
   since.setDate(since.getDate() - days);
   since.setUTCHours(0, 0, 0, 0);

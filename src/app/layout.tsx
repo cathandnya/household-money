@@ -19,6 +19,7 @@ const nav = [
   { href: "/rules", label: "ルール" },
   { href: "/accounts", label: "口座" },
   { href: "/import", label: "取込" },
+  { href: "/history", label: "履歴" },
 ];
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -227,6 +227,9 @@ function FileImportRow({
       return;
     }
     setCommitted(true);
+    setPreview(null);
+    setAccountId("");
+    setAdapterCode("");
     setMessage(
       json.kind === "snapshot"
         ? `スナップショット取込: ${json.inserted} 件`
@@ -258,8 +261,12 @@ function FileImportRow({
             <p className="text-xs text-muted-foreground">判定中...</p>
           )}
         </div>
-        <button className="text-xs text-muted-foreground hover:text-red-500" onClick={onRemove}>
-          除外
+        <button
+          className="text-muted-foreground hover:text-red-500 text-lg leading-none px-2"
+          onClick={onRemove}
+          aria-label="除外"
+        >
+          ×
         </button>
       </header>
 
