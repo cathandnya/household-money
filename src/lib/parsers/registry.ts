@@ -7,6 +7,7 @@ import { smccAdapter } from "./smcc";
 import { rakutenCardAdapter } from "./rakutenCard";
 import { rakutenSecTxAdapter, rakutenSecHoldingAdapter } from "./rakutenSec";
 import { sbiBenefitAdapter } from "./sbiBenefit";
+import { resonaAdapter } from "./resona";
 
 export const adapters: ParserAdapter[] = [
   rakutenBankAdapter,
@@ -18,6 +19,7 @@ export const adapters: ParserAdapter[] = [
   rakutenSecTxAdapter,
   rakutenSecHoldingAdapter,
   sbiBenefitAdapter,
+  resonaAdapter,
 ];
 
 export function getAdapter(code: string): ParserAdapter | undefined {
@@ -34,4 +36,5 @@ export const institutionAdapterMap: Record<string, string[]> = {
   rakuten_card: ["rakuten_card"],
   rakuten_sec: ["rakuten_sec_tx", "rakuten_sec_holding"],
   sbi_benefit: ["sbi_benefit"],
+  resona: ["resona"],
 };

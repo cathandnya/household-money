@@ -15,6 +15,7 @@ const institutions = [
   { code: "rakuten_card", name: "楽天カード", kind: "CARD" },
   { code: "rakuten_sec", name: "楽天証券", kind: "SECURITIES" },
   { code: "sbi_benefit", name: "SBIベネフィットシステムズ", kind: "DC" },
+  { code: "resona", name: "りそな銀行", kind: "BANK" },
 ];
 
 const categories: { name: string; kind: "EXPENSE" | "INCOME" | "TRANSFER" }[] = [
