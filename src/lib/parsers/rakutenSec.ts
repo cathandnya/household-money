@@ -1,0 +1,132 @@
+import Papa from "papaparse";
+import type {
+  ParsedHoldingRow,
+  ParsedSecTxRow,
+  ParserAdapter,
+  ParseResult,
+} from "./types";
+import { parseAmount, parseFloatJp, parseJpDate } from "./util";
+
+// --- 楽天証券 取引履歴 CSV ---
+// ヘッダ例: 約定日,銘柄コード,銘柄名,市場,取引区分,数量,単価,受渡金額,手数料,税
+export const rakutenSecTxAdapter: ParserAdapter = {
+  code: "rakuten_sec_tx",
+  label: "楽天証券 取引履歴",
+  encoding: "auto",
+  resultKind: "sec_tx",
+  parse(text: string): ParseResult {
+    const warnings: string[] = [];
+    const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });
+    const rows = parsed.data as string[][];
+    if (rows.length === 0) return { kind: "sec_tx", rows: [], warnings: ["empty"] };
+
+    const headerIdx = rows.findIndex(
+      (r) => r.some((c) => /約定日|受渡日/.test(c)) && r.some((c) => /銘柄/.test(c)),
+    );
+    const header = rows[Math.max(headerIdx, 0)].map((s) => s.trim());
+    const dataRows = rows.slice(Math.max(headerIdx, 0) + 1);
+    const idx = (re: RegExp) => header.findIndex((h) => re.test(h));
+    const iDate = idx(/約定日|受渡日/);
+    const iCode = idx(/銘柄コード|コード/);
+    const iName = idx(/銘柄名|銘柄/);
+    const iSide = idx(/取引区分|区分|売買/);
+    const iQty = idx(/数量|株数|口数/);
+    const iPrice = idx(/単価|約定価格/);
+    const iAmount = idx(/受渡金額|金額/);
+    const iFee = idx(/手数料/);
+    if (iDate < 0 || iName < 0) {
+      return { kind: "sec_tx", rows: [], warnings: ["必須列なし"] };
+    }
+
+    const out: ParsedSecTxRow[] = [];
+    for (const r of dataRows) {
+      if (!r || r.every((c) => !c?.trim())) continue;
+      const date = parseJpDate(r[iDate] ?? "");
+      if (!date) continue;
+      const sideRaw = (iSide >= 0 ? r[iSide] : "").trim();
+      const side: ParsedSecTxRow["side"] = /買/.test(sideRaw)
+        ? "BUY"
+        : /売/.test(sideRaw)
+          ? "SELL"
+          : /配当|分配/.test(sideRaw)
+            ? "DIVIDEND"
+            : /入金/.test(sideRaw)
+              ? "DEPOSIT"
+              : /出金/.test(sideRaw)
+                ? "WITHDRAW"
+                : "OTHER";
+      const raw: Record<string, string> = {};
+      header.forEach((h, i) => (raw[h] = r[i] ?? ""));
+      out.push({
+        tradedAt: date,
+        ticker: iCode >= 0 ? r[iCode]?.trim() : undefined,
+        name: (r[iName] ?? "").trim(),
+        side,
+        qty: iQty >= 0 ? parseFloatJp(r[iQty]) : undefined,
+        price: iPrice >= 0 ? parseFloatJp(r[iPrice]) : undefined,
+        amount: iAmount >= 0 ? parseAmount(r[iAmount]) : 0,
+        fee: iFee >= 0 ? parseAmount(r[iFee]) : undefined,
+        raw,
+      });
+    }
+    return { kind: "sec_tx", rows: out, warnings };
+  },
+};
+
+// --- 楽天証券 保有商品スナップショット ---
+// ヘッダ例: 銘柄コード,銘柄名,保有数量,平均取得価額,現在値,評価額,評価損益
+export const rakutenSecHoldingAdapter: ParserAdapter = {
+  code: "rakuten_sec_holding",
+  label: "楽天証券 保有商品 (スナップショット)",
+  encoding: "auto",
+  resultKind: "snapshot",
+  parse(text: string, fileName: string): ParseResult {
+    const warnings: string[] = [];
+    const parsed = Papa.parse<string[]>(text.trim(), { skipEmptyLines: true });
+    const rows = parsed.data as string[][];
+    if (rows.length === 0)
+      return {
+        kind: "snapshot",
+        snapshot: { snapshotDate: new Date(), holdings: [] },
+        warnings: ["empty"],
+      };
+
+    // ファイル名から日付を抽出 (YYYYMMDD)
+    let snapshotDate: Date = new Date();
+    const m = fileName.match(/(\d{4})(\d{2})(\d{2})/);
+    if (m) snapshotDate = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    else {
+      snapshotDate.setUTCHours(0, 0, 0, 0);
+      warnings.push("ファイル名から日付を抽出できなかったため本日を採用");
+    }
+
+    const headerIdx = rows.findIndex(
+      (r) => r.some((c) => /銘柄/.test(c)) && r.some((c) => /評価額|時価評価/.test(c)),
+    );
+    const header = rows[Math.max(headerIdx, 0)].map((s) => s.trim());
+    const dataRows = rows.slice(Math.max(headerIdx, 0) + 1);
+    const idx = (re: RegExp) => header.findIndex((h) => re.test(h));
+    const iCode = idx(/コード/);
+    const iName = idx(/銘柄名|銘柄/);
+    const iQty = idx(/保有数量|数量|株数|口数/);
+    const iAvg = idx(/平均取得|取得単価/);
+    const iValue = idx(/評価額|時価評価/);
+    if (iName < 0 || iValue < 0)
+      return { kind: "snapshot", snapshot: { snapshotDate, holdings: [] }, warnings: ["必須列なし"] };
+
+    const holdings: ParsedHoldingRow[] = [];
+    for (const r of dataRows) {
+      if (!r || r.every((c) => !c?.trim())) continue;
+      const name = (r[iName] ?? "").trim();
+      if (!name) continue;
+      holdings.push({
+        ticker: iCode >= 0 ? r[iCode]?.trim() : undefined,
+        name,
+        qty: iQty >= 0 ? parseFloatJp(r[iQty]) ?? 0 : 0,
+        avgCost: iAvg >= 0 ? parseFloatJp(r[iAvg]) : undefined,
+        marketValue: parseAmount(r[iValue]),
+      });
+    }
+    return { kind: "snapshot", snapshot: { snapshotDate, holdings }, warnings };
+  },
+};

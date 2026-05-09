@@ -1,65 +1,156 @@
-import Image from "next/image";
+"use client";
+import { useEffect, useState } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
-export default function Home() {
+type AccountSummary = {
+  accountId: number;
+  accountName: string;
+  institutionName: string;
+  kind: string;
+  balance: number;
+  asOf: string | null;
+};
+type Timeline = Array<{ date: string; total: number }>;
+type Monthly = Array<{
+  month: string;
+  categoryId: number | null;
+  categoryName: string;
+  kind: string | null;
+  amount: number;
+}>;
+type Summary = { accounts: AccountSummary[]; timeline: Timeline; monthly: Monthly };
+
+export default function Dashboard() {
+  const [data, setData] = useState<Summary | null>(null);
+  useEffect(() => {
+    fetch("/api/summary").then((r) => r.json()).then(setData);
+  }, []);
+  if (!data) return <p>読込中...</p>;
+
+  const totalNow = data.accounts.reduce((s, a) => s + a.balance, 0);
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const monthExpense = data.monthly
+    .filter((m) => m.month === thisMonth && m.kind === "EXPENSE")
+    .reduce((s, m) => s + m.amount, 0);
+  const monthIncome = data.monthly
+    .filter((m) => m.month === thisMonth && m.kind === "INCOME")
+    .reduce((s, m) => s + m.amount, 0);
+
+  const months = Array.from(new Set(data.monthly.map((m) => m.month))).sort().slice(-6);
+  const cats = Array.from(new Set(data.monthly.map((m) => m.categoryName)));
+  const matrix: Record<string, Record<string, number>> = {};
+  for (const c of cats) matrix[c] = {};
+  for (const m of data.monthly) matrix[m.categoryName][m.month] = m.amount;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="space-y-8">
+      <h1 className="text-2xl font-bold">ダッシュボード</h1>
+
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card title="総資産" value={totalNow} />
+        <Card title={`今月収入 (${thisMonth})`} value={monthIncome} />
+        <Card title={`今月支出 (${thisMonth})`} value={monthExpense} />
+      </section>
+
+      <section className="bg-surface border border-border-app p-4">
+        <h2 className="font-bold mb-2">資産推移</h2>
+        <div className="h-72">
+          <ResponsiveContainer>
+            <LineChart data={data.timeline.slice(-365)}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} stroke="var(--border)" />
+              <YAxis
+                tickFormatter={(v: number) => v.toLocaleString()}
+                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                stroke="var(--border)"
+              />
+              <Tooltip
+                formatter={(v) => Number(v).toLocaleString() + "円"}
+                contentStyle={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }}
+              />
+              <Line type="monotone" dataKey="total" stroke="#3b82f6" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      <section className="bg-surface border border-border-app p-4">
+        <h2 className="font-bold mb-2">口座別残高</h2>
+        <table className="w-full text-sm">
+          <thead className="bg-surface-muted">
+            <tr>
+              <th className="text-left p-2">機関</th>
+              <th className="text-left p-2">口座</th>
+              <th className="text-left p-2">種別</th>
+              <th className="text-right p-2">残高</th>
+              <th className="text-left p-2">As of</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.accounts.map((a) => (
+              <tr key={a.accountId} className="border-t">
+                <td className="p-2">{a.institutionName}</td>
+                <td className="p-2">{a.accountName}</td>
+                <td className="p-2">{a.kind}</td>
+                <td className="p-2 text-right">{a.balance.toLocaleString()}</td>
+                <td className="p-2">{a.asOf?.slice(0, 10) ?? "-"}</td>
+              </tr>
+            ))}
+            {data.accounts.length === 0 && (
+              <tr><td className="p-4 text-muted-foreground" colSpan={5}>口座がまだ登録されていません</td></tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="bg-surface border border-border-app p-4">
+        <h2 className="font-bold mb-2">月次カテゴリ集計 (直近6ヶ月)</h2>
+        <div className="overflow-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-surface-muted">
+              <tr>
+                <th className="text-left p-1">カテゴリ</th>
+                {months.map((m) => (
+                  <th key={m} className="text-right p-1">{m}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {cats.map((c) => (
+                <tr key={c} className="border-t">
+                  <td className="p-1">{c}</td>
+                  {months.map((m) => (
+                    <td key={m} className="p-1 text-right">
+                      {matrix[c][m]?.toLocaleString() ?? ""}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </main>
+      </section>
+    </div>
+  );
+}
+
+function Card({ title, value }: { title: string; value: number }) {
+  return (
+    <div className="bg-surface border border-border-app p-4">
+      <p className="text-xs text-muted-foreground">{title}</p>
+      <p className="text-2xl font-bold mt-1">{value.toLocaleString()} 円</p>
     </div>
   );
 }

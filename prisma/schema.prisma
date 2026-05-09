@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// 機関の種別
+// SQLite なので enum は string で運用する
+
+model Institution {
+  id        Int       @id @default(autoincrement())
+  code      String    @unique // 例: "rakuten_bank", "smcc"
+  name      String
+  kind      String    // BANK | CARD | SECURITIES | DC
+  accounts  Account[]
+}
+
+model Account {
+  id              Int          @id @default(autoincrement())
+  institutionId   Int
+  institution     Institution  @relation(fields: [institutionId], references: [id])
+  name            String
+  currency        String       @default("JPY")
+  kind            String       // CHECKING | SAVINGS | CREDIT_CARD | BROKERAGE | DC
+  credentialRef   String?      // 将来のスクレイピング用 (Keychain 参照名等)
+  createdAt       DateTime     @default(now())
+
+  imports         Import[]
+  transactions    Transaction[]
+  securityTransactions SecurityTransaction[]
+  holdingSnapshots HoldingSnapshot[]
+
+  @@unique([institutionId, name])
+}
+
+model Import {
+  id          Int      @id @default(autoincrement())
+  accountId   Int
+  account     Account  @relation(fields: [accountId], references: [id])
+  fileName    String
+  fileHash    String   @unique
+  source      String   @default("CSV") // CSV | SCRAPE | API
+  importedAt  DateTime @default(now())
+  rowCount    Int
+  status      String   @default("OK")  // OK | PARTIAL | FAILED
+
+  transactions         Transaction[]
+  securityTransactions SecurityTransaction[]
+  holdingSnapshots     HoldingSnapshot[]
+}
+
+model Transaction {
+  id          Int       @id @default(autoincrement())
+  accountId   Int
+  account     Account   @relation(fields: [accountId], references: [id])
+  importId    Int
+  import      Import    @relation(fields: [importId], references: [id])
+  occurredAt  DateTime
+  amount      Int       // 円 (符号付き、入金 +, 出金 -)
+  balance     Int?
+  payee       String
+  memo        String?
+  raw         String    // JSON 文字列
+  rowHash     String    @unique
+  categoryId  Int?
+  category    Category? @relation(fields: [categoryId], references: [id])
+
+  @@index([accountId, occurredAt])
+  @@index([categoryId])
+}
+
+model SecurityTransaction {
+  id         Int      @id @default(autoincrement())
+  accountId  Int
+  account    Account  @relation(fields: [accountId], references: [id])
+  importId   Int
+  import     Import   @relation(fields: [importId], references: [id])
+  tradedAt   DateTime
+  ticker     String?
+  name       String
+  side       String   // BUY | SELL | DIVIDEND | DEPOSIT | WITHDRAW | FEE | OTHER
+  qty        Float?
+  price      Float?
+  amount     Int      // 円
+  fee        Int?
+  raw        String
+  rowHash    String   @unique
+
+  @@index([accountId, tradedAt])
+}
+
+model HoldingSnapshot {
+  id           Int       @id @default(autoincrement())
+  accountId    Int
+  account      Account   @relation(fields: [accountId], references: [id])
+  importId     Int
+  import       Import    @relation(fields: [importId], references: [id])
+  snapshotDate DateTime
+  sourceFile   String
+  holdings     Holding[]
+
+  @@unique([accountId, snapshotDate])
+}
+
+model Holding {
+  id           Int             @id @default(autoincrement())
+  snapshotId   Int
+  snapshot     HoldingSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  ticker       String?
+  name         String
+  qty          Float
+  avgCost      Float?
+  marketValue  Int             // 円換算時価評価額
+  currency     String          @default("JPY")
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  parentId  Int?
+  parent    Category? @relation("CategoryParent", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryParent")
+  kind      String    // EXPENSE | INCOME | TRANSFER
+
+  transactions Transaction[]
+  rules        Rule[]
+}
+
+model Rule {
+  id                Int      @id @default(autoincrement())
+  priority          Int      @default(100)
+  pattern           String
+  isRegex           Boolean  @default(false)
+  field             String   @default("PAYEE") // PAYEE | MEMO
+  accountKindFilter String?
+  categoryId        Int
+  category          Category @relation(fields: [categoryId], references: [id])
+  enabled           Boolean  @default(true)
+
+  @@index([priority])
+}
