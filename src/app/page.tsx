@@ -210,6 +210,10 @@ export default function Dashboard() {
 
       <section className="bg-surface border border-border-app p-4">
         <h3 className="font-bold mb-2">口座別残高</h3>
+        {(() => {
+          const visibleAccounts = data.accounts.filter((a) => a.kind !== "CREDIT_CARD");
+          return (
+        <>
         {/* PC: テーブル */}
         <table className="hidden md:table w-full text-sm">
           <thead className="bg-surface-muted">
@@ -222,7 +226,7 @@ export default function Dashboard() {
             </tr>
           </thead>
           <tbody>
-            {data.accounts.map((a) => (
+            {visibleAccounts.map((a) => (
               <tr key={a.accountId} className="border-t">
                 <td className="p-2">
                   {institutionUrls[a.institutionCode] ? (
@@ -246,7 +250,7 @@ export default function Dashboard() {
                 </td>
               </tr>
             ))}
-            {data.accounts.length === 0 && (
+            {visibleAccounts.length === 0 && (
               <tr><td className="p-4 text-muted-foreground" colSpan={5}>口座がまだ登録されていません</td></tr>
             )}
           </tbody>
@@ -254,7 +258,7 @@ export default function Dashboard() {
 
         {/* モバイル: カード */}
         <ul className="md:hidden flex flex-col gap-2">
-          {data.accounts.map((a) => {
+          {visibleAccounts.map((a) => {
             const stale =
               !a.asOf ||
               Date.now() - new Date(a.asOf).getTime() > 31 * 24 * 60 * 60 * 1000;
@@ -293,12 +297,15 @@ export default function Dashboard() {
               </li>
             );
           })}
-          {data.accounts.length === 0 && (
+          {visibleAccounts.length === 0 && (
             <li className="bg-surface border border-border-app p-4 text-sm text-muted-foreground text-center">
               口座がまだ登録されていません
             </li>
           )}
         </ul>
+        </>
+          );
+        })()}
       </section>
     </div>
   );
