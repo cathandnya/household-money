@@ -439,8 +439,8 @@ function FileImportRow({
               });
               return {
                 matchCount: matched.length,
-                sampleMatches: matched.slice(0, 5).map((r) => ({
-                  id: 0,
+                sampleMatches: matched.slice(0, 5).map((r, i) => ({
+                  id: i,
                   occurredAt: r.occurredAt,
                   payee: r.payee,
                   account: `${account.institution.name}/${account.name}`,
