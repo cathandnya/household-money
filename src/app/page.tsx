@@ -211,7 +211,7 @@ export default function Dashboard() {
       <section className="bg-surface border border-border-app p-4">
         <h3 className="font-bold mb-2">口座別残高</h3>
         {(() => {
-          const visibleAccounts = data.accounts.filter((a) => a.kind !== "CREDIT_CARD");
+          const visibleAccounts = data.accounts;
           return (
         <>
         {/* PC: テーブル */}
@@ -244,7 +244,7 @@ export default function Dashboard() {
                 </td>
                 <td className="p-2">{a.accountName}</td>
                 <td className="p-2">{accountKindLabels[a.kind] ?? a.kind}</td>
-                <td className="p-2 text-right">{a.balance.toLocaleString()}</td>
+                <td className="p-2 text-right">{a.kind === "CREDIT_CARD" ? "" : a.balance.toLocaleString()}</td>
                 <td className={`p-2 ${!a.asOf || Date.now() - new Date(a.asOf).getTime() > 31 * 24 * 60 * 60 * 1000 ? "text-red-500" : ""}`}>
                   {a.asOf ? a.asOf.slice(0, 10) : "未取込"}
                 </td>
@@ -285,7 +285,7 @@ export default function Dashboard() {
                     {a.accountName}
                   </span>
                   <span className="num font-bold whitespace-nowrap">
-                    {a.balance.toLocaleString()}
+                    {a.kind === "CREDIT_CARD" ? "" : a.balance.toLocaleString()}
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground">
