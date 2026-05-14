@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { recategorizeAll } from "@/lib/categorize";
 
 export const runtime = "nodejs";
 

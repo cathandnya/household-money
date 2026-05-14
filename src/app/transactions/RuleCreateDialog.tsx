@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { suggestRulePatterns, type SuggestedPattern } from "@/lib/suggestRule";
+import { suggestRulePatterns } from "@/lib/suggestRule";
 
 export type RuleDialogTx = {
   id: number;
