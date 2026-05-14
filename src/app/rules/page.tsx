@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import RuleEditDialog from "./RuleEditDialog";
 
 type Category = { id: number; name: string };
 type Rule = {
@@ -27,6 +28,7 @@ export default function RulesPage() {
   const [amountMax, setAmountMax] = useState("");
   const [reapplying, setReapplying] = useState(false);
   const [reapplyMsg, setReapplyMsg] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Rule | null>(null);
 
   const reload = async () => {
     const [r, c] = await Promise.all([
@@ -123,7 +125,13 @@ export default function RulesPage() {
                   <td className="p-2">{r.isRegex ? "✓" : ""}</td>
                   <td className="p-2">{amt}</td>
                   <td className="p-2">{r.category.name}</td>
-                  <td className="p-2">
+                  <td className="p-2 whitespace-nowrap">
+                    <button
+                      className="text-blue-600 text-xs mr-2"
+                      onClick={() => setEditing(r)}
+                    >
+                      編集
+                    </button>
                     <button className="text-red-500 text-xs" onClick={() => remove(r.id)}>
                       削除
                     </button>
@@ -162,6 +170,13 @@ export default function RulesPage() {
                   <span className="font-mono break-all min-w-0 flex-1">
                     {r.pattern}
                   </span>
+                  <button
+                    onClick={() => setEditing(r)}
+                    aria-label="編集"
+                    className="w-11 h-11 flex items-center justify-center text-blue-600 -m-2 flex-shrink-0"
+                  >
+                    ✎
+                  </button>
                   <button
                     onClick={() => remove(r.id)}
                     aria-label="削除"
@@ -253,6 +268,18 @@ export default function RulesPage() {
           <button className="bg-blue-600 text-white px-4 py-2 col-span-2">追加</button>
         </form>
       </section>
+
+      {editing && (
+        <RuleEditDialog
+          rule={editing}
+          cats={cats}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            reload();
+          }}
+        />
+      )}
     </div>
   );
 }

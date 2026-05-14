@@ -73,6 +73,16 @@ export default function RuleCreateDialog({
 }) {
   const candidates = useMemo(() => suggestRulePatterns(tx.payee), [tx.payee]);
   const [selectedIdx, setSelectedIdx] = useState(0);
+  // 選択中候補のパターン。候補切替 (selectCandidate) で初期化し、ユーザが
+  // 自由に書き換えできる (正規表現パターンの直接入力にも使う)。
+  const [editedPattern, setEditedPattern] = useState(
+    () => candidates[0]?.pattern ?? "",
+  );
+  // ラジオで候補を選び直したら、その候補の pattern で編集欄をリセットする。
+  const selectCandidate = (i: number) => {
+    setSelectedIdx(i);
+    setEditedPattern(candidates[i]?.pattern ?? "");
+  };
   const [isRegex, setIsRegex] = useState(false);
   const [accountKindOn, setAccountKindOn] = useState(true);
   const [field, setField] = useState<"PAYEE" | "MEMO">("PAYEE");
@@ -104,17 +114,16 @@ export default function RuleCreateDialog({
       .catch(() => setExistingRules([]));
   }, []);
 
-  const selected = candidates[selectedIdx];
   const accountKindFilter = accountKindOn ? tx.account.kind : null;
 
   // 同 pattern + field + accountKindFilter + 金額条件 の既存ルールを探す
   const conflict = useMemo(() => {
-    if (!selected) return null;
+    if (!editedPattern) return null;
     const targetKind = accountKindOn ? tx.account.kind : null;
     return (
       existingRules.find(
         (r) =>
-          r.pattern === selected.pattern &&
+          r.pattern === editedPattern &&
           r.field === field &&
           (r.accountKindFilter || null) === targetKind &&
           r.isRegex === isRegex &&
@@ -124,7 +133,7 @@ export default function RuleCreateDialog({
     );
   }, [
     existingRules,
-    selected,
+    editedPattern,
     field,
     accountKindOn,
     tx.account.kind,
@@ -137,13 +146,13 @@ export default function RuleCreateDialog({
   // なければ /api/rules/preview を debounce で叩く。
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!selected) {
+    if (!editedPattern) {
       setPreview(null);
       return;
     }
     if (scope) {
       const r = scope.matcher({
-        pattern: selected.pattern,
+        pattern: editedPattern,
         isRegex,
         field,
         accountKindFilter,
@@ -158,7 +167,7 @@ export default function RuleCreateDialog({
       setPreviewing(true);
       try {
         const params = new URLSearchParams({
-          pattern: selected.pattern,
+          pattern: editedPattern,
           isRegex: isRegex ? "1" : "0",
           field,
         });
@@ -176,10 +185,10 @@ export default function RuleCreateDialog({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.pattern, isRegex, field, accountKindFilter, amountMinNum, amountMaxNum]);
+  }, [editedPattern, isRegex, field, accountKindFilter, amountMinNum, amountMaxNum]);
 
   const createAndMaybeApply = async (alsoApply: boolean) => {
-    if (!selected) return;
+    if (!editedPattern) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -196,7 +205,7 @@ export default function RuleCreateDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          pattern: selected.pattern,
+          pattern: editedPattern,
           isRegex,
           field,
           priority,
@@ -219,7 +228,7 @@ export default function RuleCreateDialog({
         if (scope) {
           // クライアント側のスコープに適用 (DB の他取引には触らない)
           scope.onApplyToScope({
-            pattern: selected.pattern,
+            pattern: editedPattern,
             isRegex,
             field,
             accountKindFilter,
@@ -281,9 +290,11 @@ export default function RuleCreateDialog({
             <h3 className="font-bold mb-1">パターン候補</h3>
             <ul className="space-y-1">
               {candidates.map((c, i) => {
+                // 候補欄に表示するパターン: 選択中の行は編集後の値を反映する
+                const shownPattern = selectedIdx === i ? editedPattern : c.pattern;
                 const isExisting = existingRules.some(
                   (r) =>
-                    r.pattern === c.pattern &&
+                    r.pattern === shownPattern &&
                     r.field === field &&
                     (r.accountKindFilter || null) === accountKindFilter &&
                     r.isRegex === isRegex &&
@@ -297,7 +308,7 @@ export default function RuleCreateDialog({
                         type="radio"
                         name="rule-candidate"
                         checked={selectedIdx === i}
-                        onChange={() => setSelectedIdx(i)}
+                        onChange={() => selectCandidate(i)}
                         className="mt-1"
                       />
                       <div className="flex-1">
@@ -318,6 +329,22 @@ export default function RuleCreateDialog({
             </ul>
           </section>
         )}
+
+        <section>
+          <h3 className="font-bold mb-1 text-xs">パターン (編集可)</h3>
+          <input
+            className="border border-border-app p-2 w-full font-mono text-xs"
+            value={editedPattern}
+            onChange={(e) => setEditedPattern(e.target.value)}
+            placeholder="マッチさせる文字列。正規表現も可 (例: Amazon|アマゾン)"
+          />
+          {isRegex && (
+            <p className="text-xs text-muted-foreground mt-1">
+              正規表現として評価されます (例: <span className="font-mono">^コンビニ</span>、
+              <span className="font-mono">電気代$</span>)
+            </p>
+          )}
+        </section>
 
         <section className="grid grid-cols-2 gap-2">
           <label className="flex items-center gap-2 text-xs">
@@ -434,7 +461,7 @@ export default function RuleCreateDialog({
             type="button"
             className="px-3 py-1 text-xs bg-neutral-700 text-white disabled:bg-neutral-400"
             onClick={() => createAndMaybeApply(false)}
-            disabled={busy || !selected}
+            disabled={busy || !editedPattern}
           >
             ルールだけ作成
           </button>
@@ -442,7 +469,7 @@ export default function RuleCreateDialog({
             type="button"
             className="px-3 py-1 text-xs bg-blue-600 text-white disabled:bg-neutral-400"
             onClick={() => createAndMaybeApply(true)}
-            disabled={busy || !selected}
+            disabled={busy || !editedPattern}
           >
             作成して他の {preview?.matchCount ?? 0} 件に適用
           </button>
