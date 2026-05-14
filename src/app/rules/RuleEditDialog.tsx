@@ -206,7 +206,11 @@ export default function RuleEditDialog({
             <input
               type="number"
               value={priority}
-              onChange={(e) => setPriority(Number(e.target.value) || 100)}
+              onChange={(e) =>
+                setPriority(
+                  e.target.value === "" ? 100 : Number(e.target.value),
+                )
+              }
               className="border border-border-app p-1 w-20 text-xs"
             />
           </label>

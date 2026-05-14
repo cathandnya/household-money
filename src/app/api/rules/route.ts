@@ -11,6 +11,12 @@ const toIntOrNull = (v: unknown) => {
 
 const normField = (v: unknown) => (v === "MEMO" ? "MEMO" : "PAYEE");
 
+// 数値に変換できれば整数を、できなければ null を返す。id / categoryId の検証用。
+const toIntStrict = (v: unknown): number | null => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+};
+
 export async function GET() {
   const rules = await prisma.rule.findMany({
     include: { category: true },
@@ -63,10 +69,12 @@ export async function PATCH(req: NextRequest) {
     categoryId,
     enabled,
   } = body ?? {};
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  if (!pattern || !categoryId) return NextResponse.json({ error: "invalid" }, { status: 400 });
+  const ruleId = toIntStrict(id);
+  const catId = toIntStrict(categoryId);
+  if (ruleId == null) return NextResponse.json({ error: "id required" }, { status: 400 });
+  if (!pattern || catId == null) return NextResponse.json({ error: "invalid" }, { status: 400 });
   const rule = await prisma.rule.update({
-    where: { id: Number(id) },
+    where: { id: ruleId },
     data: {
       pattern: String(pattern),
       isRegex: !!isRegex,
@@ -75,8 +83,9 @@ export async function PATCH(req: NextRequest) {
       accountKindFilter: accountKindFilter || null,
       amountMin: toIntOrNull(amountMin),
       amountMax: toIntOrNull(amountMax),
-      categoryId: Number(categoryId),
-      enabled: enabled ?? true,
+      categoryId: catId,
+      // enabled が未指定なら既存値を保持する (更新APIなので強制的に true にしない)
+      ...(enabled === undefined ? {} : { enabled: !!enabled }),
     },
     include: { category: true },
   });

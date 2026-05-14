@@ -312,7 +312,7 @@ export default function RuleCreateDialog({
                         className="mt-1"
                       />
                       <div className="flex-1">
-                        <div className="font-mono break-all">{c.pattern}</div>
+                        <div className="font-mono break-all">{shownPattern}</div>
                         <div className="text-xs text-muted-foreground">
                           {c.label} / score {c.score.toFixed(2)}
                           {isExisting && (
