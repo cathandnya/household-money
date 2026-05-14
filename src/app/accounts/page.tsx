@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ACCOUNT_KIND_LABELS as accountKindLabels } from "@/lib/accountKinds";
 
 type Inst = { id: number; code: string; name: string; kind: string };
 type Account = {
@@ -9,15 +10,6 @@ type Account = {
   kind: string;
   currency: string;
   institution: Inst;
-};
-
-const accountKindLabels: Record<string, string> = {
-  CHECKING: "普通預金",
-  SAVINGS: "貯蓄預金",
-  CREDIT_CARD: "クレジットカード",
-  BROKERAGE: "証券総合口座",
-  DC: "確定拠出年金",
-  MANUAL: "手動入力",
 };
 
 const institutionKindLabels: Record<string, string> = {
