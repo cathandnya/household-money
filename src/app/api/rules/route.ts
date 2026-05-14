@@ -11,10 +11,11 @@ const toIntOrNull = (v: unknown) => {
 
 const normField = (v: unknown) => (v === "MEMO" ? "MEMO" : "PAYEE");
 
-// 数値に変換できれば整数を、できなければ null を返す。id / categoryId の検証用。
-const toIntStrict = (v: unknown): number | null => {
+// 正の整数なら返し、それ以外 (小数・非数値・0 以下) は null を返す。
+// id / categoryId の検証用 (切り捨てて誤レコードを更新するのを防ぐ)。
+const toPositiveInt = (v: unknown): number | null => {
   const n = Number(v);
-  return Number.isFinite(n) ? Math.trunc(n) : null;
+  return Number.isInteger(n) && n > 0 ? n : null;
 };
 
 export async function GET() {
@@ -69,27 +70,35 @@ export async function PATCH(req: NextRequest) {
     categoryId,
     enabled,
   } = body ?? {};
-  const ruleId = toIntStrict(id);
-  const catId = toIntStrict(categoryId);
+  const ruleId = toPositiveInt(id);
+  const catId = toPositiveInt(categoryId);
   if (ruleId == null) return NextResponse.json({ error: "id required" }, { status: 400 });
   if (!pattern || catId == null) return NextResponse.json({ error: "invalid" }, { status: 400 });
-  const rule = await prisma.rule.update({
-    where: { id: ruleId },
-    data: {
-      pattern: String(pattern),
-      isRegex: !!isRegex,
-      field: normField(field),
-      priority: Number(priority ?? 100),
-      accountKindFilter: accountKindFilter || null,
-      amountMin: toIntOrNull(amountMin),
-      amountMax: toIntOrNull(amountMax),
-      categoryId: catId,
-      // enabled が未指定なら既存値を保持する (更新APIなので強制的に true にしない)
-      ...(enabled === undefined ? {} : { enabled: !!enabled }),
-    },
-    include: { category: true },
-  });
-  return NextResponse.json(rule);
+  try {
+    const rule = await prisma.rule.update({
+      where: { id: ruleId },
+      data: {
+        pattern: String(pattern),
+        isRegex: !!isRegex,
+        field: normField(field),
+        priority: Number(priority ?? 100),
+        accountKindFilter: accountKindFilter || null,
+        amountMin: toIntOrNull(amountMin),
+        amountMax: toIntOrNull(amountMax),
+        categoryId: catId,
+        // enabled が未指定なら既存値を保持する (更新APIなので強制的に true にしない)
+        ...(enabled === undefined ? {} : { enabled: !!enabled }),
+      },
+      include: { category: true },
+    });
+    return NextResponse.json(rule);
+  } catch (e) {
+    // Prisma P2025: 対象レコードが存在しない
+    if (e && typeof e === "object" && "code" in e && e.code === "P2025") {
+      return NextResponse.json({ error: "rule not found" }, { status: 404 });
+    }
+    throw e;
+  }
 }
 
 export async function DELETE(req: NextRequest) {

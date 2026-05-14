@@ -83,6 +83,14 @@ export default function RuleCreateDialog({
     setSelectedIdx(i);
     setEditedPattern(candidates[i]?.pattern ?? "");
   };
+  // tx が差し替わったら (同一マウントのまま別取引を開いた場合) 選択状態を初期化する。
+  // 現状の呼び出し側は条件付きレンダリングで毎回再マウントするため通常は発火しないが、
+  // 将来 tx を差し替える使い方をしても candidates と整合が取れるようにしておく。
+  useEffect(() => {
+    setSelectedIdx(0);
+    setEditedPattern(candidates[0]?.pattern ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tx.id]);
   const [isRegex, setIsRegex] = useState(false);
   const [accountKindOn, setAccountKindOn] = useState(true);
   const [field, setField] = useState<"PAYEE" | "MEMO">("PAYEE");

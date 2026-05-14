@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { ACCOUNT_KINDS, ACCOUNT_KIND_LABELS } from "@/lib/accountKinds";
 
 type Category = { id: number; name: string };
 
@@ -26,9 +27,6 @@ type PreviewResp = {
   }>;
   truncated: boolean;
 };
-
-// 口座種別の候補 (prisma schema の Account.kind)。空文字 = 制限なし。
-const ACCOUNT_KINDS = ["CHECKING", "SAVINGS", "CREDIT_CARD", "BROKERAGE", "DC"];
 
 export default function RuleEditDialog({
   rule,
@@ -224,7 +222,7 @@ export default function RuleEditDialog({
               <option value="">制限なし</option>
               {ACCOUNT_KINDS.map((k) => (
                 <option key={k} value={k}>
-                  {k}
+                  {ACCOUNT_KIND_LABELS[k]}
                 </option>
               ))}
             </select>
