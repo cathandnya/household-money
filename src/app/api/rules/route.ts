@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { recategorizeAll } from "@/lib/categorize";
 
 export const runtime = "nodejs";
+
+const toIntOrNull = (v: unknown) => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+};
+
+const normField = (v: unknown) => (v === "MEMO" ? "MEMO" : "PAYEE");
+
+// 正の整数なら返し、それ以外 (小数・非数値・0 以下) は null を返す。
+// id / categoryId の検証用 (切り捨てて誤レコードを更新するのを防ぐ)。
+const toPositiveInt = (v: unknown): number | null => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
 
 export async function GET() {
   const rules = await prisma.rule.findMany({
@@ -26,16 +40,11 @@ export async function POST(req: NextRequest) {
     enabled,
   } = body ?? {};
   if (!pattern || !categoryId) return NextResponse.json({ error: "invalid" }, { status: 400 });
-  const toIntOrNull = (v: unknown) => {
-    if (v == null || v === "") return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? Math.trunc(n) : null;
-  };
   const rule = await prisma.rule.create({
     data: {
       pattern: String(pattern),
       isRegex: !!isRegex,
-      field: field === "MEMO" ? "MEMO" : "PAYEE",
+      field: normField(field),
       priority: Number(priority ?? 100),
       accountKindFilter: accountKindFilter || null,
       amountMin: toIntOrNull(amountMin),
@@ -45,6 +54,51 @@ export async function POST(req: NextRequest) {
     },
   });
   return NextResponse.json(rule);
+}
+
+export async function PATCH(req: NextRequest) {
+  const body = await req.json();
+  const {
+    id,
+    pattern,
+    isRegex,
+    field,
+    priority,
+    accountKindFilter,
+    amountMin,
+    amountMax,
+    categoryId,
+    enabled,
+  } = body ?? {};
+  const ruleId = toPositiveInt(id);
+  const catId = toPositiveInt(categoryId);
+  if (ruleId == null) return NextResponse.json({ error: "id required" }, { status: 400 });
+  if (!pattern || catId == null) return NextResponse.json({ error: "invalid" }, { status: 400 });
+  try {
+    const rule = await prisma.rule.update({
+      where: { id: ruleId },
+      data: {
+        pattern: String(pattern),
+        isRegex: !!isRegex,
+        field: normField(field),
+        priority: Number(priority ?? 100),
+        accountKindFilter: accountKindFilter || null,
+        amountMin: toIntOrNull(amountMin),
+        amountMax: toIntOrNull(amountMax),
+        categoryId: catId,
+        // enabled が未指定なら既存値を保持する (更新APIなので強制的に true にしない)
+        ...(enabled === undefined ? {} : { enabled: !!enabled }),
+      },
+      include: { category: true },
+    });
+    return NextResponse.json(rule);
+  } catch (e) {
+    // Prisma P2025: 対象レコードが存在しない
+    if (e && typeof e === "object" && "code" in e && e.code === "P2025") {
+      return NextResponse.json({ error: "rule not found" }, { status: 404 });
+    }
+    throw e;
+  }
 }
 
 export async function DELETE(req: NextRequest) {

@@ -1,14 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-
-const accountKindLabels: Record<string, string> = {
-  CHECKING: "普通預金",
-  SAVINGS: "貯蓄預金",
-  CREDIT_CARD: "クレジットカード",
-  BROKERAGE: "証券総合口座",
-  DC: "確定拠出年金",
-  MANUAL: "手動入力",
-};
+import { ACCOUNT_KIND_LABELS as accountKindLabels } from "@/lib/accountKinds";
 
 const institutionUrls: Record<string, string> = {
   shinsei: "https://www.sbishinseibank.co.jp/",
