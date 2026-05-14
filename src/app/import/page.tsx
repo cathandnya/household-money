@@ -528,14 +528,13 @@ function PreviewBlock({
                   <th className="text-right p-1">残高</th>
                   <th className="text-left p-1">摘要</th>
                   <th className="text-left p-1">カテゴリ</th>
-                  <th className="text-left p-1">重複</th>
                 </tr>
               </thead>
               <tbody>
-                {preview.rows.slice(0, 200).map((r) => {
+                {preview.rows.filter((r) => !r.duplicate).slice(0, 200).map((r) => {
                   const cat = effectiveCategoryId(r.rowHash, r.suggestedCategoryId);
                   return (
-                    <tr key={r.rowHash} className={r.duplicate ? "text-muted-foreground" : ""}>
+                    <tr key={r.rowHash}>
                       <td className="p-1">{r.occurredAt.slice(0, 10)}</td>
                       <td className="p-1 text-right">{r.amount.toLocaleString()}</td>
                       <td className="p-1 text-right">{r.balance?.toLocaleString() ?? ""}</td>
@@ -550,7 +549,6 @@ function PreviewBlock({
                               e.target.value ? Number(e.target.value) : null,
                             )
                           }
-                          disabled={r.duplicate}
                         >
                           <option value="">-</option>
                           {allCategories.map((c) => (
@@ -560,7 +558,6 @@ function PreviewBlock({
                           ))}
                         </select>
                       </td>
-                      <td className="p-1">{r.duplicate ? "✓" : ""}</td>
                     </tr>
                   );
                 })}
@@ -569,16 +566,14 @@ function PreviewBlock({
 
             {/* モバイル: カード */}
             <ul className="md:hidden flex flex-col gap-2">
-              {preview.rows.slice(0, 200).map((r) => {
+              {preview.rows.filter((r) => !r.duplicate).slice(0, 200).map((r) => {
                 const cat = effectiveCategoryId(r.rowHash, r.suggestedCategoryId);
                 const amountColor =
                   r.amount < 0 ? "text-red-500" : r.amount > 0 ? "text-green-500" : "";
                 return (
                   <li
                     key={r.rowHash}
-                    className={`border border-border-app rounded-sm p-3 flex flex-col gap-1 ${
-                      r.duplicate ? "opacity-60" : ""
-                    }`}
+                    className="border border-border-app rounded-sm p-3 flex flex-col gap-1"
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="font-medium break-all min-w-0 flex-1">
@@ -589,14 +584,7 @@ function PreviewBlock({
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                      <span>
-                        {r.occurredAt.slice(0, 10)}
-                        {r.duplicate && (
-                          <span className="ml-2 px-1 bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded">
-                            重複
-                          </span>
-                        )}
-                      </span>
+                      <span>{r.occurredAt.slice(0, 10)}</span>
                       {r.balance != null && (
                         <span className="num whitespace-nowrap">
                           残 {r.balance.toLocaleString()}
@@ -612,7 +600,6 @@ function PreviewBlock({
                           e.target.value ? Number(e.target.value) : null,
                         )
                       }
-                      disabled={r.duplicate}
                     >
                       <option value="">カテゴリ未設定</option>
                       {allCategories.map((c) => (
@@ -626,7 +613,7 @@ function PreviewBlock({
               })}
             </ul>
 
-            {preview.rows.length > 200 && (
+            {preview.rows.filter((r) => !r.duplicate).length > 200 && (
               <p className="text-xs text-muted-foreground mt-1">先頭200行のみ表示</p>
             )}
           </div>
@@ -649,8 +636,8 @@ function PreviewBlock({
               </tr>
             </thead>
             <tbody>
-              {preview.rows.slice(0, 200).map((r, i) => (
-                <tr key={i} className={r.duplicate ? "text-muted-foreground" : ""}>
+              {preview.rows.filter((r) => !r.duplicate).slice(0, 200).map((r, i) => (
+                <tr key={i}>
                   <td className="p-1">{r.tradedAt.slice(0, 10)}</td>
                   <td className="p-1">
                     {r.ticker ? `${r.ticker} ` : ""}
@@ -666,12 +653,10 @@ function PreviewBlock({
 
           {/* モバイル: カード */}
           <ul className="md:hidden flex flex-col gap-2">
-            {preview.rows.slice(0, 200).map((r, i) => (
+            {preview.rows.filter((r) => !r.duplicate).slice(0, 200).map((r, i) => (
               <li
                 key={i}
-                className={`border border-border-app rounded-sm p-3 flex flex-col gap-1 ${
-                  r.duplicate ? "opacity-60" : ""
-                }`}
+                className="border border-border-app rounded-sm p-3 flex flex-col gap-1"
               >
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-medium break-all min-w-0 flex-1">

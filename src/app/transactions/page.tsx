@@ -94,6 +94,12 @@ export default function TransactionsPage() {
     reload();
   };
 
+  const remove = async (tx: Tx) => {
+    if (!confirm(`「${tx.payee}」${tx.amount.toLocaleString()}円 を削除しますか？`)) return;
+    await fetch(`/api/transactions/${tx.id}`, { method: "DELETE" });
+    reload();
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">取引明細</h1>
@@ -159,6 +165,7 @@ export default function TransactionsPage() {
               <th className="text-right p-1">残高</th>
               <th className="text-left p-1">摘要</th>
               <th className="text-left p-1">カテゴリ</th>
+              <th className="text-left p-1">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -195,6 +202,11 @@ export default function TransactionsPage() {
                       ))}
                   </select>
                 </td>
+                <td className="p-1">
+                  <button className="text-red-500 text-xs" onClick={() => remove(t)}>
+                    削除
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -225,6 +237,13 @@ export default function TransactionsPage() {
                     {t.amount.toLocaleString()}
                   </span>
                 )}
+                <button
+                  onClick={() => remove(t)}
+                  aria-label="削除"
+                  className="w-11 h-11 flex items-center justify-center text-red-500 -m-2 flex-shrink-0"
+                >
+                  🗑
+                </button>
               </div>
               <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span className="truncate">
