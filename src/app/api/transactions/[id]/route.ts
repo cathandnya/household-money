@@ -9,7 +9,7 @@ export async function DELETE(
 ) {
   const { id } = await params;
   const txId = Number(id);
-  if (!Number.isFinite(txId)) {
+  if (!Number.isInteger(txId) || txId <= 0) {
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   }
   const tx = await prisma.transaction.findUnique({ where: { id: txId } });
