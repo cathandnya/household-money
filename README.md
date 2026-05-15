@@ -1,5 +1,8 @@
 # household-money
 
+
+[![YouTube](https://github.com/user-attachments/assets/993db5fd-0d19-4a10-b99f-0ae1582824f0)](https://youtu.be/C-dJnxJGRUc)
+
 銀行・クレジットカード・証券・DC・手動記録の各口座を一元管理する個人ローカル家計簿アプリ。CSV/PDF/HTML を取り込んで、資産推移・取引明細・ポートフォリオを可視化する。
 
 ## 対応機関
