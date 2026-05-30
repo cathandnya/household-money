@@ -1,18 +1,21 @@
 import { parse as parseHtml } from "node-html-parser";
 import type { ParsedHoldingRow, TextParserAdapter, ParseResult } from "./types";
-import { parseAmount, parseFloatJp } from "./util";
+import { parseAmount } from "./util";
 
 // SBIベネフィット・システムズ (確定拠出年金) の「資産状況」ページを保存した
 // HTML ファイルを取り込む。加入者画面には CSV ダウンロード機能が提供されて
 // いないため、ブラウザで該当ページを保存して取り込む運用にする。
 //
-// 期待するページ構造 (Shift_JIS):
-//   <h2>現在の資産状況 <span>YYYY/MM/DD　現在</span></h2>
-//   <table id="grdSyouhinzangaku">
-//     <tr class="tableHeader">商品タイプ / 運用商品名 / 時価単価 / 残高数量 /
-//        資産残高 / 購入金額 / 損益 / -</tr>
+// 期待するページ構造 (Shift_JIS): 加入者ホーム画面の「資産残高」表。
+// テーブルには id が振られておらず class="table-style" のみ。ヘッダ行は
+// class="tableHeader" を持ち、列構成は次の 4 列:
+//   <table class="table-style">
+//     <tr class="tableHeader">商品タイプ / 運用商品名（略称）/ 資産残高 / 損益</tr>
 //     <tr class="even-row"|"odd-row"> ... 商品 1 行 ... </tr>
+//     <tr class="sum-row">合計 ...</tr>
 //   </table>
+// このページには時価単価・残高数量・購入金額の列が無いため、取得できるのは
+// 「資産残高 (時価)」と「損益」のみ。取得総額は (時価 − 損益) で算出する。
 
 export const sbiBenefitAdapter: TextParserAdapter = {
   format: "text",
@@ -45,43 +48,59 @@ export const sbiBenefitAdapter: TextParserAdapter = {
       }
     }
 
-    const table = root.querySelector("#grdSyouhinzangaku");
+    // 「資産残高」「損益」をヘッダに含む table を資産残高表として採用する。
+    // (同じページに掛金配分・基準価額・騰落率など別の table-style 表が複数ある)
+    const table = root.querySelectorAll("table").find((t) => {
+      const header = t.querySelector("tr.tableHeader");
+      if (!header) return false;
+      const cols = header.querySelectorAll("th, td").map((c) => c.text.replace(/\s+/g, ""));
+      return cols.some((c) => c.includes("資産残高")) && cols.some((c) => c.includes("損益"));
+    });
     if (!table) {
       return {
         kind: "snapshot",
         snapshot: { snapshotDate, holdings: [] },
-        warnings: [...warnings, "商品テーブル (id=grdSyouhinzangaku) が見つかりません"],
+        warnings: [...warnings, "資産残高テーブル (資産残高・損益の列を持つ表) が見つかりません"],
       };
     }
 
+    // ヘッダから列インデックスを動的に特定する (列の増減に強くする)
+    const headerCells = table
+      .querySelector("tr.tableHeader")!
+      .querySelectorAll("th, td")
+      .map((c) => c.text.replace(/\s+/g, ""));
+    const nameIdx = headerCells.findIndex((c) => c.includes("運用商品名"));
+    const valueIdx = headerCells.findIndex((c) => c.includes("資産残高"));
+    const profitIdx = headerCells.findIndex((c) => c.includes("損益"));
+
     const holdings: ParsedHoldingRow[] = [];
     for (const tr of table.querySelectorAll("tr")) {
-      if (tr.classList.contains("tableHeader")) continue;
+      // ヘッダ・合計・空行はスキップ。データ行は even-row / odd-row。
+      if (!tr.classList.contains("even-row") && !tr.classList.contains("odd-row")) continue;
       const tds = tr.querySelectorAll("td");
-      if (tds.length < 7) continue;
+      if (tds.length <= Math.max(nameIdx, valueIdx)) continue;
 
       // 運用商品名は <span class="prod-formal"> を優先
-      const formal = tds[1].querySelector(".prod-formal")?.text?.trim();
-      const name = formal || tds[1].text.trim();
+      const nameCell = tds[nameIdx];
+      const formal = nameCell.querySelector(".prod-formal")?.text?.trim();
+      const name = formal || nameCell.text.trim();
       if (!name) continue;
 
-      // td2 の「時価単価 (1万口当り)」を平均取得単価相当として保持。
-      // SBI ベネフィットの DC では「1 口当たりの取得単価」は表示されないため、
-      // 1万口当たりの時価単価を流用する (Money Forward の挙動と同様)。
-      // qty (口) と price (1万口当り円) なので qty*price は実額の1万倍になる。
-      // 取得総額は td5 の「購入金額」を直接使う。
-      const price = parseFloatJp(tds[2].text);
-      const qty = parseFloatJp(tds[3].text) ?? 0;
-      const value = parseAmount(tds[4].text);
-      const cost = parseAmount(tds[5].text);
+      // このページには時価単価・残高数量・購入金額の列が無い。
+      // 取得できるのは資産残高 (時価) と損益のみ。取得総額は時価−損益で算出する。
+      const marketValue = parseAmount(tds[valueIdx].text);
+      const profit = profitIdx >= 0 ? parseAmount(tds[profitIdx]?.text) : 0;
 
       holdings.push({
         name,
-        qty,
-        avgCost: price,
-        cost,
-        marketValue: value,
+        qty: 0,
+        cost: marketValue - profit,
+        marketValue,
       });
+    }
+
+    if (holdings.length === 0) {
+      warnings.push("資産残高テーブルから明細行を抽出できませんでした");
     }
 
     return { kind: "snapshot", snapshot: { snapshotDate, holdings }, warnings };
