@@ -57,7 +57,7 @@ export async function POST(
   const fileHash = `manual:${accountId}`;
   const manualImport = await prisma.import.upsert({
     where: { fileHash },
-    update: { rowCount: { increment: 1 } },
+    update: { rowCount: { increment: 1 }, importedAt: new Date() },
     create: {
       accountId,
       fileName: "(manual)",
