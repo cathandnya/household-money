@@ -1,21 +1,22 @@
 import { parse as parseHtml } from "node-html-parser";
 import type { ParsedHoldingRow, TextParserAdapter, ParseResult } from "./types";
-import { parseAmount } from "./util";
+import { parseAmount, parseFloatJp } from "./util";
 
 // SBIベネフィット・システムズ (確定拠出年金) の「資産状況」ページを保存した
 // HTML ファイルを取り込む。加入者画面には CSV ダウンロード機能が提供されて
 // いないため、ブラウザで該当ページを保存して取り込む運用にする。
 //
-// 期待するページ構造 (Shift_JIS): 加入者ホーム画面の「資産残高」表。
-// テーブルには id が振られておらず class="table-style" のみ。ヘッダ行は
-// class="tableHeader" を持ち、列構成は次の 4 列:
-//   <table class="table-style">
-//     <tr class="tableHeader">商品タイプ / 運用商品名（略称）/ 資産残高 / 損益</tr>
-//     <tr class="even-row"|"odd-row"> ... 商品 1 行 ... </tr>
-//     <tr class="sum-row">合計 ...</tr>
-//   </table>
-// このページには時価単価・残高数量・購入金額の列が無いため、取得できるのは
-// 「資産残高 (時価)」と「損益」のみ。取得総額は (時価 − 損益) で算出する。
+// 画面には 2 種類のレイアウトがあり、どちらも tableHeader 行で列構成が分かる:
+//
+//   詳細版 (id="grdSyouhinzangaku", 8列):
+//     商品タイプ / 運用商品名（略称）/ 時価単価(1万口当り) / 残高数量 /
+//     資産残高 / 購入金額 / 損益損益率 / -
+//   簡易版 (id 無し, 4列):
+//     商品タイプ / 運用商品名（略称）/ 資産残高 / 損益
+//
+// 列はヘッダ内容から動的に特定する。購入金額の列があれば取得総額として直接
+// 使い、無ければ (資産残高 − 損益) で算出する。損益列は詳細版だと損益額と
+// 損益率が結合 ("3,090,397円172.9％") するため、先頭の金額のみを取り出す。
 
 export const sbiBenefitAdapter: TextParserAdapter = {
   format: "text",
@@ -48,14 +49,20 @@ export const sbiBenefitAdapter: TextParserAdapter = {
       }
     }
 
-    // 「資産残高」「損益」をヘッダに含む table を資産残高表として採用する。
-    // (同じページに掛金配分・基準価額・騰落率など別の table-style 表が複数ある)
-    const table = root.querySelectorAll("table").find((t) => {
-      const header = t.querySelector("tr.tableHeader");
+    // 資産残高表を採用する。詳細版は id="grdSyouhinzangaku" を持つので最優先。
+    // 簡易版は id が無いので「資産残高」「損益」をヘッダに含む table を探す。
+    // (同じページに掛金配分・基準価額・騰落率など別の表が複数あるため列で判別)
+    const hasAssetHeader = (t: ReturnType<typeof root.querySelector>) => {
+      const header = t?.querySelector("tr.tableHeader");
       if (!header) return false;
       const cols = header.querySelectorAll("th, td").map((c) => c.text.replace(/\s+/g, ""));
       return cols.some((c) => c.includes("資産残高")) && cols.some((c) => c.includes("損益"));
-    });
+    };
+    const byId = root.querySelector("#grdSyouhinzangaku");
+    const table =
+      byId && hasAssetHeader(byId)
+        ? byId
+        : root.querySelectorAll("table").find((t) => hasAssetHeader(t));
     if (!table) {
       return {
         kind: "snapshot",
@@ -64,13 +71,16 @@ export const sbiBenefitAdapter: TextParserAdapter = {
       };
     }
 
-    // ヘッダから列インデックスを動的に特定する (列の増減に強くする)
+    // ヘッダから列インデックスを動的に特定する (詳細版 8 列 / 簡易版 4 列の両対応)
     const headerCells = table
       .querySelector("tr.tableHeader")!
       .querySelectorAll("th, td")
       .map((c) => c.text.replace(/\s+/g, ""));
     const nameIdx = headerCells.findIndex((c) => c.includes("運用商品名"));
+    const priceIdx = headerCells.findIndex((c) => c.includes("時価単価"));
+    const qtyIdx = headerCells.findIndex((c) => c.includes("残高数量"));
     const valueIdx = headerCells.findIndex((c) => c.includes("資産残高"));
+    const costIdx = headerCells.findIndex((c) => c.includes("購入金額"));
     const profitIdx = headerCells.findIndex((c) => c.includes("損益"));
 
     const holdings: ParsedHoldingRow[] = [];
@@ -86,15 +96,27 @@ export const sbiBenefitAdapter: TextParserAdapter = {
       const name = formal || nameCell.text.trim();
       if (!name) continue;
 
-      // このページには時価単価・残高数量・購入金額の列が無い。
-      // 取得できるのは資産残高 (時価) と損益のみ。取得総額は時価−損益で算出する。
       const marketValue = parseAmount(tds[valueIdx].text);
-      const profit = profitIdx >= 0 ? parseAmount(tds[profitIdx]?.text) : 0;
+      const price = priceIdx >= 0 ? parseFloatJp(tds[priceIdx]?.text) : undefined;
+      const qty = qtyIdx >= 0 ? parseFloatJp(tds[qtyIdx]?.text) ?? 0 : 0;
+
+      // 取得総額: 購入金額の列があれば直接使う。無ければ (資産残高 − 損益)。
+      // 損益列は詳細版だと損益率が結合 ("3,090,397円172.9％") するため、
+      // 先頭の「…円」までを取り出してから数値化する。
+      let cost: number;
+      if (costIdx >= 0) {
+        cost = parseAmount(tds[costIdx]?.text);
+      } else {
+        const profitText = profitIdx >= 0 ? (tds[profitIdx]?.text ?? "") : "";
+        const profit = parseAmount(profitText.match(/^[^円]*円/)?.[0] ?? profitText);
+        cost = marketValue - profit;
+      }
 
       holdings.push({
         name,
-        qty: 0,
-        cost: marketValue - profit,
+        qty,
+        avgCost: price,
+        cost,
         marketValue,
       });
     }
