@@ -24,6 +24,13 @@ export const ASSET_GROUP_LABELS: Record<AssetGroup, string> = {
 // 内訳カードの表示順
 export const ASSET_GROUP_ORDER: AssetGroup[] = ["CASH", "FUND", "PENSION"];
 
+// 資産グループの表示色 (内訳カード・資産推移グラフで共有)
+export const ASSET_GROUP_COLORS: Record<AssetGroup, string> = {
+  CASH: "#3b82f6", // 青
+  FUND: "#10b981", // 緑
+  PENSION: "#f59e0b", // オレンジ
+};
+
 // 口座種別 → 資産グループ。ここに無い種別 (CREDIT_CARD 等) は資産集計の対象外。
 const KIND_TO_ASSET_GROUP: Record<string, AssetGroup> = {
   CHECKING: "CASH",

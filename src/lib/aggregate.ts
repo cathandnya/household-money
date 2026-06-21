@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { assetGroupOf, type AssetGroup } from "./accountKinds";
 
 export type AccountSummary = {
   accountId: number;
@@ -133,8 +134,12 @@ export async function getMonthlyIncomeExpense(months = 12): Promise<MonthlyFlow[
   return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
 }
 
-// 日次の資産推移 (銀行は balance の各日最終値、証券/DC は snapshot 日のみ、未取得日は前方補完して合算。クレカは除外)
-export async function getAssetTimeline(days = 365): Promise<Array<{ date: string; total: number }>> {
+// 日次の資産推移。総額 (total) に加え、資産グループ別 (現金/投資信託/年金) の
+// 値も返す。銀行は balance の各日最終値、証券/DC は snapshot 日のみ、未取得日は
+// 前方補完して合算。クレカは除外。
+export type AssetTimelinePoint = { date: string; total: number } & Record<AssetGroup, number>;
+
+export async function getAssetTimeline(days = 365): Promise<AssetTimelinePoint[]> {
   const accounts = await prisma.account.findMany({
     where: { kind: { not: "CREDIT_CARD" } },
   });
@@ -176,15 +181,26 @@ export async function getAssetTimeline(days = 365): Promise<Array<{ date: string
     dates.push(d.toISOString().slice(0, 10));
   }
 
-  const out: Array<{ date: string; total: number }> = [];
+  // 口座 ID → 資産グループ (対象外の種別は除外済みだが念のため null はスキップ)
+  const groupOf = new Map<number, AssetGroup>();
+  for (const acc of accounts) {
+    const g = assetGroupOf(acc.kind);
+    if (g) groupOf.set(acc.id, g);
+  }
+
+  const out: AssetTimelinePoint[] = [];
   const lastValues = new Map<number, number>();
   for (const date of dates) {
+    const byGroup: Record<AssetGroup, number> = { CASH: 0, FUND: 0, PENSION: 0 };
     let total = 0;
     for (const [accId, m] of perAccount) {
       if (m.has(date)) lastValues.set(accId, m.get(date)!);
-      total += lastValues.get(accId) ?? 0;
+      const v = lastValues.get(accId) ?? 0;
+      total += v;
+      const g = groupOf.get(accId);
+      if (g) byGroup[g] += v;
     }
-    out.push({ date, total });
+    out.push({ date, total, ...byGroup });
   }
   return out;
 }

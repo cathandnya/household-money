@@ -4,6 +4,7 @@ import {
   ACCOUNT_KIND_LABELS as accountKindLabels,
   ASSET_GROUP_LABELS,
   ASSET_GROUP_ORDER,
+  ASSET_GROUP_COLORS,
   assetGroupOf,
 } from "@/lib/accountKinds";
 
@@ -20,13 +21,14 @@ const institutionUrls: Record<string, string> = {
   resona: "https://ib.resonabank.co.jp/web/",
 };
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  Legend,
   PieChart,
   Pie,
   Cell,
@@ -48,7 +50,13 @@ type AccountSummary = {
   cost: number | null;
   asOf: string | null;
 };
-type Timeline = Array<{ date: string; total: number }>;
+type Timeline = Array<{
+  date: string;
+  total: number;
+  CASH: number;
+  FUND: number;
+  PENSION: number;
+}>;
 type Monthly = Array<{
   month: string;
   categoryId: number | null;
@@ -214,7 +222,7 @@ export default function Dashboard() {
         <h3 className="font-bold mb-2">資産推移</h3>
         <div className="h-72">
           <ResponsiveContainer>
-            <LineChart data={data.timeline.slice(-365)}>
+            <AreaChart data={data.timeline.slice(-365)}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} stroke="var(--border)" />
               <YAxis
@@ -224,7 +232,10 @@ export default function Dashboard() {
               />
               {!isCoarse && (
                 <Tooltip
-                  formatter={(v) => Number(v).toLocaleString() + "円"}
+                  formatter={(v, name) => [
+                    Number(v).toLocaleString() + "円",
+                    ASSET_GROUP_LABELS[name as keyof typeof ASSET_GROUP_LABELS] ?? name,
+                  ]}
                   contentStyle={{
                     background: "var(--surface)",
                     border: "1px solid var(--border)",
@@ -232,8 +243,23 @@ export default function Dashboard() {
                   }}
                 />
               )}
-              <Line type="monotone" dataKey="total" stroke="#3b82f6" dot={false} />
-            </LineChart>
+              <Legend
+                formatter={(value) =>
+                  ASSET_GROUP_LABELS[value as keyof typeof ASSET_GROUP_LABELS] ?? value
+                }
+              />
+              {ASSET_GROUP_ORDER.map((g) => (
+                <Area
+                  key={g}
+                  type="monotone"
+                  dataKey={g}
+                  stackId="asset"
+                  stroke={ASSET_GROUP_COLORS[g]}
+                  fill={ASSET_GROUP_COLORS[g]}
+                  fillOpacity={0.6}
+                />
+              ))}
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       </section>
