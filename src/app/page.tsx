@@ -1,6 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ACCOUNT_KIND_LABELS as accountKindLabels } from "@/lib/accountKinds";
+import {
+  ACCOUNT_KIND_LABELS as accountKindLabels,
+  ASSET_GROUP_LABELS,
+  ASSET_GROUP_ORDER,
+  assetGroupOf,
+} from "@/lib/accountKinds";
 
 const institutionUrls: Record<string, string> = {
   shinsei: "https://www.sbishinseibank.co.jp/",
@@ -40,6 +45,7 @@ type AccountSummary = {
   institutionCode: string;
   kind: string;
   balance: number;
+  cost: number | null;
   asOf: string | null;
 };
 type Timeline = Array<{ date: string; total: number }>;
@@ -91,6 +97,19 @@ export default function Dashboard() {
   const totalNow = data.accounts
     .filter((a) => a.kind !== "CREDIT_CARD")
     .reduce((s, a) => s + a.balance, 0);
+
+  // 資産内訳: 口座種別を現金/投資信託/年金にまとめる (クレカ等は対象外)。
+  // 損益は取得額 (cost) が取れる口座だけを合算した部分損益。1 件も無ければ null。
+  const assetBreakdown = ASSET_GROUP_ORDER.map((group) => {
+    const accts = data.accounts.filter((a) => assetGroupOf(a.kind) === group);
+    const value = accts.reduce((s, a) => s + a.balance, 0);
+    const withCost = accts.filter((a) => a.cost != null);
+    const profit =
+      withCost.length > 0
+        ? withCost.reduce((s, a) => s + (a.balance - (a.cost ?? 0)), 0)
+        : null;
+    return { group, label: ASSET_GROUP_LABELS[group], value, profit };
+  }).filter((g) => g.value !== 0);
   const flow = data.monthlyFlow.find((f) => f.month === selectedMonth);
   const monthIncome = flow?.income ?? 0;
   const monthExpense = flow?.expense ?? 0;
@@ -171,6 +190,25 @@ export default function Dashboard() {
       <section>
         <Card title="総資産" value={totalNow} />
       </section>
+
+      {assetBreakdown.length > 0 && (
+        <section
+          className={`grid grid-cols-1 gap-4 ${
+            assetBreakdown.length >= 3 ? "md:grid-cols-3" : "md:grid-cols-2"
+          }`}
+        >
+          {assetBreakdown.map((g) => (
+            <Card
+              key={g.group}
+              title={`${g.label}${
+                totalNow > 0 ? ` (${Math.round((g.value / totalNow) * 100)}%)` : ""
+              }`}
+              value={g.value}
+              profit={g.profit}
+            />
+          ))}
+        </section>
+      )}
 
       <section className="bg-surface border border-border-app p-4">
         <h3 className="font-bold mb-2">資産推移</h3>
@@ -303,11 +341,29 @@ export default function Dashboard() {
   );
 }
 
-function Card({ title, value }: { title: string; value: number }) {
+function Card({
+  title,
+  value,
+  profit,
+}: {
+  title: string;
+  value: number;
+  profit?: number | null;
+}) {
   return (
     <div className="bg-surface border border-border-app p-4">
       <p className="text-xs text-muted-foreground">{title}</p>
       <p className="text-2xl font-bold mt-1 num">{value.toLocaleString()} 円</p>
+      {profit != null && (
+        <p
+          className={`text-xs mt-1 num ${
+            profit >= 0 ? "text-emerald-600" : "text-red-500"
+          }`}
+        >
+          損益 {profit >= 0 ? "+" : ""}
+          {profit.toLocaleString()} 円
+        </p>
+      )}
     </div>
   );
 }

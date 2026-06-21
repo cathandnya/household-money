@@ -7,6 +7,9 @@ export type AccountSummary = {
   institutionCode: string;
   kind: string;
   balance: number; // 現金口座は最新の Transaction.balance、証券/DC は最新 snapshot 評価額
+  // 証券/DC の取得総額 (最新 snapshot の holding.cost 合計)。損益 = balance - cost。
+  // 取得額が取れない口座 (現金・手動入力や cost 欠損) は null とし損益を出さない。
+  cost: number | null;
   asOf: string | null;
 };
 
@@ -28,6 +31,11 @@ export async function getAccountSummaries(): Promise<AccountSummary[]> {
         include: { holdings: true },
       });
       const total = snap ? snap.holdings.reduce((s, h) => s + h.marketValue, 0) : 0;
+      // 取得総額: holding が 1 つでも cost 欠損なら損益を出せないので null
+      const cost =
+        snap && snap.holdings.length > 0 && snap.holdings.every((h) => h.cost != null)
+          ? snap.holdings.reduce((s, h) => s + (h.cost ?? 0), 0)
+          : null;
       out.push({
         accountId: acc.id,
         accountName: acc.name,
@@ -35,6 +43,7 @@ export async function getAccountSummaries(): Promise<AccountSummary[]> {
         institutionCode: acc.institution.code,
         kind: acc.kind,
         balance: total,
+        cost,
         asOf,
       });
     } else {
@@ -49,6 +58,7 @@ export async function getAccountSummaries(): Promise<AccountSummary[]> {
         institutionCode: acc.institution.code,
         kind: acc.kind,
         balance: last?.balance ?? 0,
+        cost: null,
         asOf,
       });
     }
