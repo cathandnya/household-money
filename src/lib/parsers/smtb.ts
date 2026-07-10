@@ -96,6 +96,8 @@ export const smtbAdapter: PdfParserAdapter = {
       });
     }
 
+    // PDF は新しい取引が上部に並ぶため、id ASC = 時系列 ASC の不変条件を守るため逆順にする。
+    out.reverse();
     return { kind: "tx", rows: out, warnings };
   },
 };

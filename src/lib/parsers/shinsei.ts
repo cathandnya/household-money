@@ -54,6 +54,8 @@ export const shinseiAdapter: TextParserAdapter = {
       header.forEach((h, i) => (raw[h] = r[i] ?? ""));
       out.push({ occurredAt: date, amount, balance, payee, raw });
     }
+    // CSV は新しい取引が先頭に並ぶ。id ASC = 時系列 ASC の不変条件を守るため逆順にする。
+    out.reverse();
     return { kind: "tx", rows: out, warnings };
   },
 };
