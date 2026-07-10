@@ -35,11 +35,32 @@ const formatDateTime = (iso: string) => {
 export default function HistoryPage() {
   const [rows, setRows] = useState<ImportRow[] | null>(null);
 
+  const reload = async () => {
+    const r = await fetch("/api/imports");
+    setRows(await r.json());
+  };
+
   useEffect(() => {
-    fetch("/api/imports")
-      .then((r) => r.json())
-      .then(setRows);
+    reload();
   }, []);
+
+  const onDelete = async (row: ImportRow) => {
+    const parts: string[] = [];
+    if (row.counts.tx > 0) parts.push(`取引 ${row.counts.tx} 件`);
+    if (row.counts.secTx > 0) parts.push(`証券取引 ${row.counts.secTx} 件`);
+    if (row.counts.snapshot > 0) parts.push(`スナップショット ${row.counts.snapshot} 件`);
+    const label = row.source === "MANUAL" ? "残高記録" : `'${row.fileName}'`;
+    const msg =
+      `${row.institution.name} / ${row.account.name} の取り込み ${label} を削除しますか？\n` +
+      (parts.length > 0 ? `関連する ${parts.join(" / ")} も同時に削除されます。` : "");
+    if (!window.confirm(msg)) return;
+    const res = await fetch(`/api/imports/${row.id}`, { method: "DELETE" });
+    if (res.ok) {
+      await reload();
+    } else {
+      alert("削除失敗");
+    }
+  };
 
   if (!rows) return <p>読込中...</p>;
 
@@ -59,6 +80,7 @@ export default function HistoryPage() {
               <th className="text-left p-2">種別</th>
               <th className="text-right p-2">行数</th>
               <th className="text-left p-2">ステータス</th>
+              <th className="text-right p-2">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -71,11 +93,19 @@ export default function HistoryPage() {
                 <td className="p-2">{kindLabel(r)}</td>
                 <td className="p-2 text-right">{r.rowCount.toLocaleString()}</td>
                 <td className="p-2">{r.status}</td>
+                <td className="p-2 text-right">
+                  <button
+                    className="text-red-500 text-xs"
+                    onClick={() => onDelete(r)}
+                  >
+                    削除
+                  </button>
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td className="p-4 text-muted-foreground" colSpan={7}>
+                <td className="p-4 text-muted-foreground" colSpan={8}>
                   まだ取り込み履歴がありません
                 </td>
               </tr>
@@ -97,6 +127,13 @@ export default function HistoryPage() {
                 <span className="num font-bold whitespace-nowrap">
                   {r.rowCount.toLocaleString()} 行
                 </span>
+                <button
+                  aria-label="削除"
+                  className="w-11 h-11 flex items-center justify-center text-red-500 -m-2 flex-shrink-0"
+                  onClick={() => onDelete(r)}
+                >
+                  🗑
+                </button>
               </div>
               <div className="text-xs text-muted-foreground flex flex-wrap gap-x-2">
                 <span className="whitespace-nowrap">{formatDateTime(r.importedAt)}</span>
