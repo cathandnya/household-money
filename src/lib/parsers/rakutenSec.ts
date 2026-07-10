@@ -177,6 +177,28 @@ export const rakutenSecHoldingAdapter: TextParserAdapter = {
         marketValue,
       });
     }
+
+    // 「■資産合計欄」に含まれる預り金 (JPY / 外貨) は保有商品ではないため
+    // 上記ループでは拾えない。楽天証券アプリ上の「資産合計」と一致させるために
+    // ここで別途取り込み、synthetic holding として holdings に追加する。
+    // 円建て・外貨建てを合算した「預り金合計」行だけを見る (他は内訳)。
+    for (let i = 0; i < absHeaderIdx; i++) {
+      const r = rows[i];
+      const label = (r?.[0] ?? "").trim();
+      if (label !== "預り金合計") continue;
+      const value = parseAmount(r[1] ?? "");
+      if (value !== 0) {
+        holdings.push({
+          ticker: undefined,
+          name: "預り金",
+          qty: 1,
+          cost: value,
+          marketValue: value,
+        });
+      }
+      break;
+    }
+
     return { kind: "snapshot", snapshot: { snapshotDate, holdings }, warnings };
   },
 };
